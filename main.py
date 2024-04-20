@@ -112,9 +112,7 @@ def main():
     with col2:
         # 요청 입력 필드
         question = st.text_area("요청 입력", height=150)
-        USE_INSTRUCTION_PROMPT = False
-        if st.checkbox("instruction prompt 사용"):
-            USE_INSTRUCTION_PROMPT = True
+        USE_INSTRUCTION_PROMPT = True
 
         LANGUAGE = "python"
         if st.checkbox("C++ 사용"):
