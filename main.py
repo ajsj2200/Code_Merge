@@ -26,7 +26,7 @@ def main():
 
     # 파일 업로드 및 세션 상태 업데이트
     uploaded_file = st.sidebar.file_uploader("세션 상태 업로드", type="json")
-    if uploaded_file is not None:
+    if uploaded_file is not None and "session_state_loaded" not in st.session_state:
         session_state_json = uploaded_file.read().decode()
         session_state_dict = json.loads(session_state_json)
         uploaded_classes = session_state_dict.get("classes", [])
@@ -42,9 +42,11 @@ def main():
         st.session_state["classes"] = merged_classes
 
         for class_name, code in class_codes.items():
-            st.session_state[f"class_code_{class_name}"] = code
+            if f"class_code_{class_name}" not in st.session_state:
+                st.session_state[f"class_code_{class_name}"] = code
 
         st.success("세션 상태가 로드되었습니다.")
+        st.session_state["session_state_loaded"] = True
 
     col1, col2 = st.columns(2)
 
@@ -91,14 +93,20 @@ def main():
         tabs = st.tabs(classes)
 
         for i, class_name in enumerate(classes):
+            # with tabs[i]:
+            #     class_codes[class_name] = st_ace(
+            #         placeholder=f"{class_name} 코드 입력",
+            #         language="python",
+            #         theme="github",
+            #         key=f"class_code_{class_name}",
+            #         height=150,  # 높이 조절
+            #         font_size=10,  # 폰트 크기
+            #     )
             with tabs[i]:
-                class_codes[class_name] = st_ace(
-                    placeholder=f"{class_name} 코드 입력",
-                    language="python",
-                    theme="github",
+                class_codes[class_name] = st.text_area(
+                    f"{class_name} 코드 입력",
+                    height=150,
                     key=f"class_code_{class_name}",
-                    height=150,  # 높이 조절
-                    font_size=10,  # 폰트 크기
                 )
 
         # 저장 및 로드 버튼
