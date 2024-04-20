@@ -78,7 +78,6 @@ def main():
                     st.session_state["selected_classes"] = selected_classes
                     st.experimental_rerun()
 
-        classes = st.session_state["classes"]
         # 사이드바에 클래스 리스트 표시
         st.sidebar.title("클래스 선택")
         class_checkboxes = {}
@@ -98,8 +97,6 @@ def main():
         st.sidebar.write("선택된 클래스:")
         for class_name in selected_classes:
             st.sidebar.write(f"- {class_name}")
-
-        st.write(st.session_state["classes"])
 
         # 모든 클래스의 코드 입력 필드 표시
         class_codes = {}
