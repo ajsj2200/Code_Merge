@@ -177,7 +177,7 @@ def main():
             if USE_COMMENT_PROMPT:
                 content = (
                     comment_prompt
-                    + "\n\n [위 내용을 참고하여 아래 코드에 주석을 달아주세요.]\n\n"
+                    + "\n\n [위 주석 가이드를 참고하여 아래 코드에 주석을 달아주세요.]\n\n"
                     + "Code : \n\n"
                     + content2
                 )
