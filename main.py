@@ -11,59 +11,82 @@ def main():
         st.session_state["classes"] = []
     if "selected_classes" not in st.session_state:
         st.session_state["selected_classes"] = []
-    
+
     classes = st.session_state["classes"]
     selected_classes = st.session_state["selected_classes"]
-    
+
+    # 세션 초기화 버튼 추가
+    if st.sidebar.button("세션 초기화"):
+        st.session_state.clear()
+        classes = []
+        selected_classes = []
+        st.experimental_rerun()
+
     # 파일 업로드 및 세션 상태 업데이트
     uploaded_file = st.sidebar.file_uploader("세션 상태 업로드", type="json")
     if uploaded_file is not None:
         session_state_json = uploaded_file.read().decode()
         session_state_dict = json.loads(session_state_json)
         uploaded_classes = session_state_dict.get("classes", [])
-        uploaded_selected_classes = session_state_dict.get("selected_classes", [])
-        
+
         # 업로드한 클래스와 현재 클래스 병합
         merged_classes = list(set(classes + uploaded_classes))
-        merged_selected_classes = list(set(selected_classes + uploaded_selected_classes))
-        
-        class_codes = {class_name: session_state_dict.get(f"class_code_{class_name}", "") for class_name in merged_selected_classes}
-        
+
+        class_codes = {class_name: session_state_dict.get(f"class_code_{class_name}", "") for class_name in uploaded_classes}
+
         st.session_state["classes"] = merged_classes
-        st.session_state["selected_classes"] = merged_selected_classes
-        
+
         for class_name, code in class_codes.items():
             st.session_state[f"class_code_{class_name}"] = code
-        
+
         st.success("세션 상태가 로드되었습니다.")
-        
-        
-    
+
     col1, col2 = st.columns(2)
-    
+
     with col1:
-        # 사이드바에 클래스 추가 섹션 생성
+        # 사이드바에 클래스 추가 및 삭제 섹션 생성
         st.sidebar.title("클래스 관리")
         class_name = st.sidebar.text_input("클래스 이름 입력", key="class_name_input")
+
+        # 클래스 추가 버튼
         if st.sidebar.button("클래스 추가", key="add_class") and class_name:
-            # 클래스 이름을 classes 리스트에 추가
             if class_name not in classes:
                 classes.append(class_name)
                 st.session_state["classes"] = classes
-                selected_classes = classes
+                selected_classes = classes.copy()  # 복사본 할당
+            else:
+                st.sidebar.error(f"{class_name}는 이미 추가된 클래스입니다.")
+
+        # 클래스 삭제 버튼
+        if st.sidebar.button("클래스 삭제", key="delete_class") and class_name:
+            if class_name in classes:
+                classes.remove(class_name)
+                selected_classes.remove(class_name) if class_name in selected_classes else None
+                st.session_state["classes"] = classes
+                st.session_state["selected_classes"] = selected_classes
+
         classes = st.session_state["classes"]
-        
-        # 사이드바에서 선택된 클래스들 가져오기 (기본적으로 모든 클래스 선택)
-        if not selected_classes:
-            selected_classes = st.session_state["classes"]
-        print(classes, selected_classes)
-        selected_classes = st.sidebar.multiselect("클래스 선택", options=classes, default=selected_classes, key="selected_classes")
-        
-        # 선택된 클래스들의 코드 입력 필드 표시
+
+        # 사이드바에 클래스 리스트 표시
+        st.sidebar.title("클래스 리스트")
+        class_display_options = {}
+        for i, class_name in enumerate(classes):
+            class_display_options[class_name] = st.sidebar.checkbox(class_name, value=True, key=f"display_{i}")
+
+        st.write(st.session_state['classes'])
+
+        # 모든 클래스의 코드 입력 필드 표시
         class_codes = {}
-        for class_name in selected_classes:
+        for class_name in classes:
             class_codes[class_name] = st.text_area(f"{class_name} 코드 입력", key=f"class_code_{class_name}", height=50)
-        
+            if class_display_options[class_name]:
+                selected_classes.append(class_name)
+            else:
+                if class_name in selected_classes:
+                    selected_classes.remove(class_name)
+
+        st.session_state["selected_classes"] = selected_classes
+
         # 저장 및 로드 버튼
         if st.sidebar.button("세션 상태 다운로드"):
             # 세션 상태를 일반 Python 딕셔너리로 변환
@@ -85,26 +108,50 @@ def main():
                 file_name="session_state.json",
                 mime="application/json",
             )
-    
+
     with col2:
         # 요청 입력 필드
         question = st.text_area("요청 입력", height=150)
-        
+        USE_INSTRUCTION_PROMPT = False
+        if st.checkbox("instruction prompt 사용"):
+            USE_INSTRUCTION_PROMPT = True
+
+        LANGUAGE = "python"
+        if st.checkbox("C++ 사용"):
+            LANGUAGE = "cpp"
+
         # 복사 버튼
         if st.button("요청과 선택된 클래스 코드들 복사"):
-            if selected_classes and all(class_codes.values()):
-                # 요청과 선택된 클래스들의 코드 내용 합치기
-                instruction_prompt = "\n\n[위 코드를 참고하여 요청에 대답하세요. 답변은 구체적이며 자세하게 합니다. 그리고 코드를 작성할 때는 코드의 가독성을 높이기 위해 주석을 사용하세요.]\n\n"
-                content2 = f"[요청: {question}]"
-                content = ""
-                for class_name in selected_classes:
-                    content += f"################ {class_name} 코드:\n{class_codes[class_name]}\n\n"
-                content = content + instruction_prompt + content2
-                # 클립보드에 복사
-                st.code(content)
-                st.success("요청과 선택된 클래스 코드들이 복사되었습니다.")
+            # 요청과 선택된 클래스들의 코드 내용 합치기
+            with open("instruction prompt.txt", "r", encoding="utf-8") as f:
+                instruction_prompt = f.read()
+            content2 = f"[요청: {question}]"
+            content = ""
+            
+            # selected_classes 리스트 초기화
+            selected_classes = []
+            
+            # 현재 선택된 클래스만 selected_classes에 추가
+            for class_name in classes:
+                if class_display_options[class_name]:
+                    selected_classes.append(class_name)
+            
+            st.session_state["selected_classes"] = selected_classes
+            
+            st.write(st.session_state["selected_classes"])
+            for class_name in st.session_state["selected_classes"]:
+                content += f"################ {class_name} 코드:\n{class_codes[class_name]}\n\n"
+
+            # instruction prompt 사용할건지 안할건지 선택
+            if USE_INSTRUCTION_PROMPT:
+                content = content + "[User Instruction] \n\n[" + instruction_prompt + "]\n\n" + content2
             else:
-                st.warning("클래스를 선택하고 코드를 입력해주세요.")
+                content = content + content2
+
+            # 클립보드에 복사
+            st.success("요청과 선택된 클래스 코드들이 복사되었습니다.")
+            st.code(content, language=LANGUAGE)
+            
 
 if __name__ == "__main__":
     main()
