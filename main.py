@@ -64,24 +64,40 @@ def main():
         # 클래스 삭제 버튼
         if st.sidebar.button("클래스 삭제", key="delete_class") and class_name:
             if class_name in classes:
-                classes.remove(class_name)
-                (
-                    selected_classes.remove(class_name)
-                    if class_name in selected_classes
-                    else None
-                )
-                st.session_state["classes"] = classes
-                st.session_state["selected_classes"] = selected_classes
+                if st.sidebar.button(
+                    f"{class_name}를 정말 삭제하시겠습니까?",
+                    key=f"confirm_delete_{class_name}",
+                ):
+                    classes.remove(class_name)
+                    (
+                        selected_classes.remove(class_name)
+                        if class_name in selected_classes
+                        else None
+                    )
+                    st.session_state["classes"] = classes
+                    st.session_state["selected_classes"] = selected_classes
+                    st.experimental_rerun()
 
         classes = st.session_state["classes"]
-
         # 사이드바에 클래스 리스트 표시
-        st.sidebar.title("클래스 리스트")
-        class_display_options = {}
-        for i, class_name in enumerate(classes):
-            class_display_options[class_name] = st.sidebar.checkbox(
-                class_name, value=True, key=f"display_{i}"
+        st.sidebar.title("클래스 선택")
+        class_checkboxes = {}
+        for class_name in classes:
+            class_checkboxes[class_name] = st.sidebar.checkbox(
+                class_name,
+                value=class_name in selected_classes,
+                key=f"checkbox_{class_name}",
             )
+
+        selected_classes = [
+            class_name for class_name, checked in class_checkboxes.items() if checked
+        ]
+        st.session_state["selected_classes"] = selected_classes
+
+        # 선택된 클래스 표시
+        st.sidebar.write("선택된 클래스:")
+        for class_name in selected_classes:
+            st.sidebar.write(f"- {class_name}")
 
         st.write(st.session_state["classes"])
 
