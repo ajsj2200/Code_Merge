@@ -139,7 +139,6 @@ def main():
             USE_COMMENT_PROMPT = True
             with open("comment prompt.txt", "r", encoding="utf-8") as f:
                 comment_prompt = f.read()
-            st.write(f"[Comment Prompt]\n\n{comment_prompt}")
 
         # 복사 버튼
         if st.button("요청과 선택된 클래스 코드들 복사"):
