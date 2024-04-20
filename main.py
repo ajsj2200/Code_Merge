@@ -1,6 +1,7 @@
 import streamlit as st
 import json
 from io import BytesIO
+from streamlit_ace import st_ace
 
 
 def main():
@@ -87,17 +88,18 @@ def main():
 
         # 모든 클래스의 코드 입력 필드 표시
         class_codes = {}
-        for class_name in classes:
-            class_codes[class_name] = st.text_area(
-                f"{class_name} 코드 입력", key=f"class_code_{class_name}", height=50
-            )
-            if class_display_options[class_name]:
-                selected_classes.append(class_name)
-            else:
-                if class_name in selected_classes:
-                    selected_classes.remove(class_name)
+        tabs = st.tabs(classes)
 
-        st.session_state["selected_classes"] = selected_classes
+        for i, class_name in enumerate(classes):
+            with tabs[i]:
+                class_codes[class_name] = st_ace(
+                    placeholder=f"{class_name} 코드 입력",
+                    language="python",
+                    theme="github",
+                    key=f"class_code_{class_name}",
+                    height=150,  # 높이 조절
+                    font_size=10,  # 폰트 크기
+                )
 
         # 저장 및 로드 버튼
         if st.sidebar.button("세션 상태 다운로드"):
@@ -162,7 +164,7 @@ def main():
             for class_name in st.session_state["selected_classes"]:
                 content += f"################ {class_name} 코드:\n{class_codes[class_name]}\n\n"
 
-            # instruction prompt 사용할건지 안할건지 선택
+            # instruction prompt 사용 여부에 따라 content 구성
             if USE_INSTRUCTION_PROMPT:
                 content = (
                     content
