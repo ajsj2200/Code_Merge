@@ -179,7 +179,7 @@ def main():
                 content = (
                     comment_prompt
                     + "\n\n 위 내용을 참고하여 아래 코드에 주석을 달아주세요.\n\n"
-                    + content
+                    + content2
                 )
 
             # 클립보드에 복사
