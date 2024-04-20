@@ -183,7 +183,7 @@ def main():
                 )
 
             # 클립보드에 복사
-            st.success("요청과 선택된 클래스 코드들이 복사되었습니다.")
+            st.success("아래 복사 버튼을 누르세요.")
             st.code(content, language=LANGUAGE)
 
 
