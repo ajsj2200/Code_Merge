@@ -44,18 +44,88 @@ def load_session_state(classes):
     return st.session_state["classes"]
 
 
+def initialize_session_state():
+    if "classes" not in st.session_state:
+        st.session_state["classes"] = []
+    if "selected_classes" not in st.session_state:
+        st.session_state["selected_classes"] = []
+    return st.session_state["classes"], st.session_state["selected_classes"]
+
+
+def manage_classes(classes, selected_classes, class_name):
+    if class_name not in classes:
+        classes.append(class_name)
+        st.session_state["classes"] = classes
+        selected_classes = classes.copy()  # 복사본 할당
+    else:
+        st.sidebar.error(f"{class_name}는 이미 추가된 클래스입니다.")
+    return classes, selected_classes
+
+
+def remove_class(classes, selected_classes, class_name):
+    if class_name in classes:
+        classes.remove(class_name)
+        selected_classes.remove(class_name) if class_name in selected_classes else None
+        st.session_state["classes"] = classes
+        st.session_state["selected_classes"] = selected_classes
+    return classes, selected_classes
+
+
+def load_prompts(USE_COMMENT_PROMPT, USE_SYSTEM_PROMPT):
+    return {
+        "comment": (
+            open("comment prompt.txt", "r", encoding="utf-8").read()
+            if USE_COMMENT_PROMPT
+            else ""
+        ),
+        "system": (
+            open("system prompt.txt", "r", encoding="utf-8").read()
+            if USE_SYSTEM_PROMPT
+            else ""
+        ),
+        "instruction": open("instruction prompt.txt", "r", encoding="utf-8").read(),
+    }
+
+
+def get_content(
+    classes,
+    class_display_options,
+    class_codes,
+    USE_INSTRUCTION_PROMPT,
+    USE_COMMENT_PROMPT,
+    USE_SYSTEM_PROMPT,
+    prompts,
+    question,
+):
+    user_content = f"[요청: {question}]"
+    selected_classes = [
+        class_name for class_name in classes if class_display_options[class_name]
+    ]
+    st.session_state["selected_classes"] = selected_classes
+    st.write(selected_classes)
+    code_contents = "\n\n".join(
+        [
+            f"################ {class_name} 코드:\n{class_codes[class_name]}"
+            for class_name in selected_classes
+        ]
+    )
+    if USE_INSTRUCTION_PROMPT:
+        content = f"{code_contents}\n[User Instruction] \n\n[{prompts['instruction']}]\n\n{user_content}"
+    else:
+        content = f"{code_contents}\n{user_content}"
+    if USE_COMMENT_PROMPT:
+        content = f"{prompts['comment']}\n\n [위 코딩 가이드를 참고하여 아래 코드에 주석을 한국어로 달아주세요.]\n\nCode : \n\n{code_contents}"
+    if USE_SYSTEM_PROMPT:
+        content = f"System instruction : {prompts['system']}\n\n사용자가 제공한 코드 : \n\n{code_contents}\n\n{prompts['instruction']}]\n\n{user_content}\n\n한국어로 대답해줘. 코드는 위에 있어."
+    return content
+
+
 def main():
     st.set_page_config(page_title="Code Input and Copy UI", layout="wide")
     st.title("코드 입력 및 복사 UI")
 
     # 세션 상태 초기화
-    if "classes" not in st.session_state:
-        st.session_state["classes"] = []
-    if "selected_classes" not in st.session_state:
-        st.session_state["selected_classes"] = []
-
-    classes = st.session_state["classes"]
-    selected_classes = st.session_state["selected_classes"]
+    classes, selected_classes = initialize_session_state()
 
     # 세션 초기화 버튼 추가
     if st.sidebar.button("세션 초기화"):
@@ -76,24 +146,15 @@ def main():
 
         # 클래스 추가 버튼
         if st.sidebar.button("클래스 추가", key="add_class") and class_name:
-            if class_name not in classes:
-                classes.append(class_name)
-                st.session_state["classes"] = classes
-                selected_classes = classes.copy()  # 복사본 할당
-            else:
-                st.sidebar.error(f"{class_name}는 이미 추가된 클래스입니다.")
+            classes, selected_classes = manage_classes(
+                classes, selected_classes, class_name
+            )
 
         # 클래스 삭제 버튼
         if st.sidebar.button("클래스 삭제", key="delete_class") and class_name:
-            if class_name in classes:
-                classes.remove(class_name)
-                (
-                    selected_classes.remove(class_name)
-                    if class_name in selected_classes
-                    else None
-                )
-                st.session_state["classes"] = classes
-                st.session_state["selected_classes"] = selected_classes
+            classes, selected_classes = remove_class(
+                classes, selected_classes, class_name
+            )
 
         classes = st.session_state["classes"]
 
@@ -128,81 +189,29 @@ def main():
         with col2:
             # 요청 입력 필드
             question = st.text_area("요청 입력", height=150)
+
+            # 언어 선택
+            LANGUAGE = "python" if not st.checkbox("C++ 사용") else "cpp"
+
+            # 프롬프트 설정
             USE_INSTRUCTION_PROMPT = True
-            USE_COMMENT_PROMPT = False
-            USE_SYSTEM_PROMPT = False
+            USE_COMMENT_PROMPT = st.checkbox("주석 사용")
+            USE_SYSTEM_PROMPT = st.checkbox("시스템 프롬프트 사용")
 
-            LANGUAGE = "python"
-            if st.checkbox("C++ 사용"):
-                LANGUAGE = "cpp"
+            # 프롬프트 파일 불러오기
+            prompts = load_prompts(USE_COMMENT_PROMPT, USE_SYSTEM_PROMPT)
 
-            # 주석 사용 여부 선택
-            if st.checkbox("주석 사용"):
-                USE_COMMENT_PROMPT = True
-                with open("comment prompt.txt", "r", encoding="utf-8") as f:
-                    comment_prompt = f.read()
-
-            # 시스템 프롬프트 사용 여부 선택
-            if st.checkbox("시스템 프롬프트 사용"):
-                USE_SYSTEM_PROMPT = True
-                with open("system prompt.txt", "r", encoding="utf-8") as f:
-                    system_prompt = f.read()
-
-            # 복사 버튼
             if st.button("요청과 선택된 클래스 코드들 복사"):
-                # 요청과 선택된 클래스들의 코드 내용 합치기
-                with open("instruction prompt.txt", "r", encoding="utf-8") as f:
-                    instruction_prompt = f.read()
-                user_content = f"[요청: {question}]"
-                code_contents = ""
-
-                # selected_classes 리스트 초기화
-                selected_classes = []
-
-                # 현재 선택된 클래스만 selected_classes에 추가
-                for class_name in classes:
-                    if class_display_options[class_name]:
-                        selected_classes.append(class_name)
-
-                st.session_state["selected_classes"] = selected_classes
-
-                st.write(st.session_state["selected_classes"])
-                for class_name in st.session_state["selected_classes"]:
-                    code_contents += f"################ {class_name} 코드:\n{class_codes[class_name]}\n\n"
-
-                # instruction prompt 사용 여부에 따라 content 구성
-                if USE_INSTRUCTION_PROMPT:
-                    content = (
-                        code_contents
-                        + "[User Instruction] \n\n["
-                        + instruction_prompt
-                        + "]\n\n"
-                        + user_content
-                    )
-                else:
-                    content = code_contents + user_content
-
-                if USE_COMMENT_PROMPT:
-                    content = (
-                        comment_prompt
-                        + "\n\n [위 코딩 가이드를 참고하여 아래 코드에 주석을 한국어로 달아주세요.]\n\n"
-                        + "Code : \n\n"
-                        + code_contents
-                    )
-
-                if USE_SYSTEM_PROMPT:
-                    content = (
-                        "System instruction : "
-                        + system_prompt
-                        + "\n\n"
-                        + "사용자가 제공한 코드 : \n\n"
-                        + code_contents
-                        + "\n\n"
-                        + instruction_prompt
-                        + "]\n\n"
-                        + user_content
-                        + "\n\n 한국어로 대답해줘. 코드는 위에 있어."
-                    )
+                content = get_content(
+                    classes,
+                    class_display_options,
+                    class_codes,
+                    USE_INSTRUCTION_PROMPT,
+                    USE_COMMENT_PROMPT,
+                    USE_SYSTEM_PROMPT,
+                    prompts,
+                    question,
+                )
 
                 # 클립보드에 복사
                 st.success("아래 복사 버튼을 누르세요.")
