@@ -139,6 +139,7 @@ def main():
         question = st.text_area("요청 입력", height=150)
         USE_INSTRUCTION_PROMPT = True
         USE_COMMENT_PROMPT = False
+        USE_SYSTEM_PROMPT = False
 
         LANGUAGE = "python"
         if st.checkbox("C++ 사용"):
@@ -149,6 +150,12 @@ def main():
             USE_COMMENT_PROMPT = True
             with open("comment prompt.txt", "r", encoding="utf-8") as f:
                 comment_prompt = f.read()
+
+        # 시스템 프롬프트 사용 여부 선택
+        if st.checkbox("시스템 프롬프트 사용"):
+            USE_SYSTEM_PROMPT = True
+            with open("system prompt.txt", "r", encoding="utf-8") as f:
+                system_prompt = f.read()
 
         # 복사 버튼
         if st.button("요청과 선택된 클래스 코드들 복사"):
@@ -191,6 +198,9 @@ def main():
                     + "Code : \n\n"
                     + content2
                 )
+
+            if USE_SYSTEM_PROMPT:
+                content = system_prompt + "\n\n" + content
 
             # 클립보드에 복사
             st.success("아래 복사 버튼을 누르세요.")
