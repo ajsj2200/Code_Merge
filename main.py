@@ -200,7 +200,7 @@ def main():
                 )
 
             if USE_SYSTEM_PROMPT:
-                content = system_prompt + "\n\n" + content
+                content = "Role : " + system_prompt + "\n\n" + content
 
             # 클립보드에 복사
             st.success("아래 복사 버튼을 누르세요.")
