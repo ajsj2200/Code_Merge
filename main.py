@@ -16,7 +16,7 @@ def download_session_state(classes, selected_classes, class_codes):
     bio = BytesIO(session_state_json.encode())
     bio.seek(0)
 
-    st.sidebar.download_button(
+    download_button = st.sidebar.download_button(
         label="세션 상태 다운로드",
         data=bio,
         file_name="session_state.json",
