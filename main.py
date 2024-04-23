@@ -65,7 +65,8 @@ def manage_classes(classes, selected_classes, class_name):
 def remove_class(classes, selected_classes, class_name):
     if class_name in classes:
         classes.remove(class_name)
-        selected_classes.remove(class_name) if class_name in selected_classes else None
+        selected_classes.remove(
+            class_name) if class_name in selected_classes else None
         st.session_state["classes"] = classes
         st.session_state["selected_classes"] = selected_classes
     return classes, selected_classes
@@ -110,13 +111,16 @@ def get_content(
         ]
     )
     if USE_INSTRUCTION_PROMPT:
-        content = f"{code_contents}\n[User Instruction] \n\n[{prompts['instruction']}]\n\n{user_content}"
+        content = f"{code_contents}\n[User Instruction] \n\n[{
+            prompts['instruction']}]\n\n{user_content}"
     else:
         content = f"{code_contents}\n{user_content}"
     if USE_COMMENT_PROMPT:
-        content = f"{prompts['comment']}\n\n [위 코딩 가이드를 참고하여 아래 코드에 주석을 한국어로 달아주세요.]\n\nCode : \n\n{code_contents}"
+        content = f"{prompts['comment']}\n\n [위 코딩 가이드를 참고하여 아래 코드에 주석을 한국어로 달아주세요.]\n\nCode : \n\n{
+            code_contents}"
     if USE_SYSTEM_PROMPT:
-        content = f"System instruction : {prompts['system']}\n\n사용자가 제공한 코드 : \n\n{code_contents}\n\n{prompts['instruction']}]\n\n{user_content}\n\n한국어로 대답해줘. 코드는 위에 있어."
+        content = f"System instruction : {prompts['system']}\n\n사용자가 제공한 코드 : \n\n{
+            code_contents}\n\n{prompts['instruction']}]\n\n{user_content}\n\n한국어로 대답해줘. 코드는 위에 있어."
     return content
 
 
@@ -137,85 +141,81 @@ def main():
     # 파일 업로드 및 세션 상태 업데이트
     classes = load_session_state(classes)
 
-    col1, col2 = st.columns(2)
+    # 사이드바에 클래스 추가 및 삭제 섹션 생성
+    st.sidebar.title("클래스 관리")
+    class_name = st.sidebar.text_input("클래스 이름 입력", key="class_name_input")
 
-    with col1:
-        # 사이드바에 클래스 추가 및 삭제 섹션 생성
-        st.sidebar.title("클래스 관리")
-        class_name = st.sidebar.text_input("클래스 이름 입력", key="class_name_input")
+    # 클래스 추가 버튼
+    if st.sidebar.button("클래스 추가", key="add_class") and class_name:
+        classes, selected_classes = manage_classes(
+            classes, selected_classes, class_name
+        )
 
-        # 클래스 추가 버튼
-        if st.sidebar.button("클래스 추가", key="add_class") and class_name:
-            classes, selected_classes = manage_classes(
-                classes, selected_classes, class_name
-            )
+    # 클래스 삭제 버튼
+    if st.sidebar.button("클래스 삭제", key="delete_class") and class_name:
+        classes, selected_classes = remove_class(
+            classes, selected_classes, class_name
+        )
 
-        # 클래스 삭제 버튼
-        if st.sidebar.button("클래스 삭제", key="delete_class") and class_name:
-            classes, selected_classes = remove_class(
-                classes, selected_classes, class_name
-            )
+    classes = st.session_state["classes"]
 
-        classes = st.session_state["classes"]
+    # 사이드바에 클래스 리스트 표시
+    st.sidebar.title("클래스 리스트")
+    class_display_options = {}
+    for i, class_name in enumerate(classes):
+        class_display_options[class_name] = st.sidebar.checkbox(
+            class_name, value=True, key=f"display_{i}"
+        )
 
-        # 사이드바에 클래스 리스트 표시
-        st.sidebar.title("클래스 리스트")
-        class_display_options = {}
+    st.write(st.session_state["classes"])
+
+    # 모든 클래스의 코드 입력 필드 표시
+    class_codes = {}
+    # classes에 값이 있는 경우 수행
+    if classes:
+        tabs = st.tabs(classes)
+
         for i, class_name in enumerate(classes):
-            class_display_options[class_name] = st.sidebar.checkbox(
-                class_name, value=True, key=f"display_{i}"
-            )
-
-        st.write(st.session_state["classes"])
-
-        # 모든 클래스의 코드 입력 필드 표시
-        class_codes = {}
-        # classes에 값이 있는 경우 수행
-        if classes:
-            tabs = st.tabs(classes)
-
-            for i, class_name in enumerate(classes):
-                with tabs[i]:
-                    class_codes[class_name] = st.text_area(
-                        f"{class_name} 코드 입력",
-                        height=150,
-                        key=f"class_code_{class_name}",
-                    )
-
-            # 저장 및 로드 버튼
-            if st.sidebar.button("세션 상태 다운로드"):
-                download_session_state(classes, selected_classes, class_codes)
-
-        with col2:
-            # 요청 입력 필드
-            question = st.text_area("요청 입력", height=150)
-
-            # 언어 선택
-            LANGUAGE = "python" if not st.checkbox("C++ 사용") else "cpp"
-
-            # 프롬프트 설정
-            USE_INSTRUCTION_PROMPT = True
-            USE_COMMENT_PROMPT = st.checkbox("주석 사용")
-            USE_SYSTEM_PROMPT = st.checkbox("시스템 프롬프트 사용")
-
-            # 프롬프트 파일 불러오기
-            prompts = load_prompts(USE_COMMENT_PROMPT, USE_SYSTEM_PROMPT)
-
-            if st.button("요청과 선택된 클래스 코드들 복사"):
-                content = get_content(
-                    classes,
-                    class_display_options,
-                    class_codes,
-                    USE_INSTRUCTION_PROMPT,
-                    USE_COMMENT_PROMPT,
-                    USE_SYSTEM_PROMPT,
-                    prompts,
-                    question,
+            with tabs[i]:
+                class_codes[class_name] = st.text_area(
+                    f"{class_name} 코드 입력",
+                    height=150,
+                    key=f"class_code_{class_name}",
                 )
 
-                # 클립보드에 복사
-                st.success("아래 복사 버튼을 누르세요.")
-                st.code(content, language=LANGUAGE)
+        # 저장 및 로드 버튼
+        if st.sidebar.button("세션 상태 다운로드"):
+            download_session_state(classes, selected_classes, class_codes)
+
+    # 요청 입력 필드
+    question = st.text_area("요청 입력", height=150)
+
+    # 언어 선택
+    LANGUAGE = "python" if not st.checkbox("C++ 사용") else "cpp"
+
+    # 프롬프트 설정
+    USE_INSTRUCTION_PROMPT = True
+    USE_COMMENT_PROMPT = st.checkbox("주석 사용")
+    USE_SYSTEM_PROMPT = st.checkbox("시스템 프롬프트 사용")
+
+    # 프롬프트 파일 불러오기
+    prompts = load_prompts(USE_COMMENT_PROMPT, USE_SYSTEM_PROMPT)
+
+    if st.button("요청과 선택된 클래스 코드들 복사"):
+        content = get_content(
+            classes,
+            class_display_options,
+            class_codes,
+            USE_INSTRUCTION_PROMPT,
+            USE_COMMENT_PROMPT,
+            USE_SYSTEM_PROMPT,
+            prompts,
+            question,
+        )
+
+        # 클립보드에 복사
+        st.success("아래 복사 버튼을 누르세요.")
+        st.code(content, language=LANGUAGE)
 
 
 if __name__ == "__main__":
