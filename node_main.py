@@ -2,6 +2,7 @@ import streamlit as st
 from streamlit_tree_select import tree_select
 import json
 import base64
+import pyperclip
 
 
 class Node:
@@ -81,13 +82,25 @@ def download_json_file(nodes, file_name):
 def load_nodes_from_json(json_data):
     try:
         nodes_data = json.loads(json_data)
-        return [Node(node['label'], node['code'], [Node(child['label'], child.get('code', '')) for child in node['children']]) for node in nodes_data]
+        nodes = []
+        for node_data in nodes_data:
+            node = load_node_from_dict(node_data)
+            nodes.append(node)
+        return nodes
     except json.JSONDecodeError:
         st.error("유효하지 않은 JSON 형식입니다.")
         return []
     except Exception as e:
         st.error(f"JSON 데이터 로드 중 오류가 발생했습니다: {str(e)}")
         return []
+
+
+def load_node_from_dict(node_data):
+    node = Node(node_data['label'], node_data.get('code', ''))
+    for child_data in node_data.get('children', []):
+        child_node = load_node_from_dict(child_data)
+        node.add_child(child_node)
+    return node
 
 
 def extract_node_labels(nodes):
@@ -112,10 +125,31 @@ def remove_node(nodes, label):
     for i, node in enumerate(nodes):
         if node.label == label:
             nodes.pop(i)
+            remove_expanded_node(label)
+            remove_expanded_children(node)
             return True
         if remove_node(node.children, label):
             return True
     return False
+
+
+def remove_expanded_node(label):
+    if label in st.session_state.expanded_nodes:
+        st.session_state.expanded_nodes.remove(label)
+
+
+def remove_expanded_children(node):
+    for child in node.children:
+        remove_expanded_node(child.label)
+        remove_expanded_children(child)
+
+
+def extract_all_node_labels(nodes):
+    labels = []
+    for node in nodes:
+        labels.append(node.label)
+        labels.extend(extract_all_node_labels(node.children))
+    return labels
 
 
 def load_prompts():
@@ -211,7 +245,7 @@ def main():
             [node.to_dict() for node in st.session_state.nodes],
             check_model='all',
             show_expand_all=True,
-            expanded=st.session_state.expanded_nodes,
+            expanded=extract_all_node_labels(st.session_state.nodes),
             checked=st.session_state.expanded_nodes
         )
 
@@ -247,7 +281,10 @@ def main():
         prompt += f"[요청: {request}]"
 
         # 프롬프트 출력
-        st.code(prompt, language="python")
+        if st.button('프롬프트 복사'):
+            pyperclip.copy(prompt)
+        if st.button('프롬프트 확인'):
+            st.code(prompt, language="python")
     except Exception as e:
         st.error(f"예기치 않은 오류가 발생했습니다: {str(e)}")
 
