@@ -58,7 +58,7 @@ def manage_classes(classes, selected_classes, class_name):
         st.session_state["classes"] = classes
         selected_classes = classes.copy()  # 복사본 할당
     else:
-        st.sidebar.error(f"{class_name}는 이미 추가된 클래스입니다.")
+        st.sidebar.error(f"{class_name}는 이미 추가된 자료입니다.")
     return classes, selected_classes
 
 
@@ -141,26 +141,26 @@ def main():
     # 파일 업로드 및 세션 상태 업데이트
     classes = load_session_state(classes)
 
-    # 사이드바에 클래스 추가 및 삭제 섹션 생성
-    st.sidebar.title("클래스 관리")
-    class_name = st.sidebar.text_input("클래스 이름 입력", key="class_name_input")
+    # 사이드바에 자료 추가 및 삭제 섹션 생성
+    st.sidebar.title("자료 관리")
+    class_name = st.sidebar.text_input("자료 이름 입력", key="class_name_input")
 
-    # 클래스 추가 버튼
-    if st.sidebar.button("클래스 추가", key="add_class") and class_name:
+    # 자료 추가 버튼
+    if st.sidebar.button("자료 추가", key="add_class") and class_name:
         classes, selected_classes = manage_classes(
             classes, selected_classes, class_name
         )
 
-    # 클래스 삭제 버튼
-    if st.sidebar.button("클래스 삭제", key="delete_class") and class_name:
+    # 자료 삭제 버튼
+    if st.sidebar.button("자료 삭제", key="delete_class") and class_name:
         classes, selected_classes = remove_class(
             classes, selected_classes, class_name
         )
 
     classes = st.session_state["classes"]
 
-    # 사이드바에 클래스 리스트 표시
-    st.sidebar.title("클래스 리스트")
+    # 사이드바에 자료 리스트 표시
+    st.sidebar.title("자료 리스트")
     class_display_options = {}
     for i, class_name in enumerate(classes):
         class_display_options[class_name] = st.sidebar.checkbox(
@@ -169,7 +169,7 @@ def main():
 
     st.write(st.session_state["classes"])
 
-    # 모든 클래스의 코드 입력 필드 표시
+    # 모든 자료의 코드 입력 필드 표시
     class_codes = {}
     # classes에 값이 있는 경우 수행
     if classes:
@@ -201,7 +201,7 @@ def main():
     # 프롬프트 파일 불러오기
     prompts = load_prompts(USE_COMMENT_PROMPT, USE_SYSTEM_PROMPT)
 
-    if st.button("요청과 선택된 클래스 코드들 복사"):
+    if st.button("요청과 선택된 자료 내용들 복사"):
         content = get_content(
             classes,
             class_display_options,

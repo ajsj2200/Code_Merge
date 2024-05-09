@@ -3,6 +3,8 @@ from streamlit_tree_select import tree_select
 import json
 import base64
 import pyperclip
+import re
+import anthropic
 
 
 class Node:
@@ -48,7 +50,7 @@ def get_selected_code(nodes, selected_nodes):
     for node_label in selected_nodes:
         node = find_node(nodes, node_label)
         if node:
-            selected_codes.append(f"########################\n 클래스 이름 : {
+            selected_codes.append(f"########################\n 자료 이름 : {
                                   node.label} \n\n{node.code}")
     return "\n\n".join(selected_codes)
 
@@ -58,12 +60,12 @@ def display_selected_codes(nodes):
     for node_label in nodes:
         node = find_node(st.session_state.nodes, node_label)
         if node:
-            selected_codes.append(f"클래스 이름 : {node.label} \n\n{node.code}")
+            selected_codes.append(f"자료 이름 : {node.label} \n\n{node.code}")
     if selected_codes:
         code_text = "\n\n".join(selected_codes)
         st.code(code_text, language="python")
     else:
-        st.write("선택된 클래스가 없습니다.")
+        st.write("선택된 자료가 없습니다.")
 
 
 def download_json_file(nodes, file_name):
@@ -166,10 +168,154 @@ def is_label_exists(nodes, label):
     return False
 
 
+def pretty_print(message):
+    print('\n\n'.join('\n'.join(line.strip() for line in re.findall(
+        r'.{1,100}(?:\s+|$)', paragraph.strip('\n'))) for paragraph in re.split(r'\n\n+', message)))
+
+
+def extract_between_tags(tag: str, string: str, strip: bool = False) -> list[str]:
+    ext_list = re.findall(f"<{tag}>(.+?)</{tag}>", string, re.DOTALL)
+    if strip:
+        ext_list = [e.strip() for e in ext_list]
+    return ext_list
+
+
+def remove_empty_tags(text):
+    return re.sub(r'\n<(\w+)>\s*</\1>\n', '', text, flags=re.DOTALL)
+
+
+def strip_last_sentence(text):
+    sentences = text.split('. ')
+    if sentences[-1].startswith("Let me know"):
+        sentences = sentences[:-1]
+        result = '. '.join(sentences)
+        if result and not result.endswith('.'):
+            result += '.'
+        return result
+    else:
+        return text
+
+
+def extract_prompt(metaprompt_response):
+    between_tags = extract_between_tags("Instructions", metaprompt_response)[0]
+    return between_tags[:1000] + strip_last_sentence(remove_empty_tags(remove_empty_tags(between_tags[1000:]).strip()).strip())
+
+
+def extract_variables(prompt):
+    pattern = r'{([^}]+)}'
+    variables = re.findall(pattern, prompt)
+    return set(variables)
+
+
+def remove_inapt_floating_variables(prompt, CLIENT, MODEL_NAME, remove_floating_variables_prompt):
+    message = CLIENT.messages.create(
+        model=MODEL_NAME,
+        messages=[{'role': "user", "content": remove_floating_variables_prompt.replace(
+            "{$PROMPT}", prompt)}],
+        max_tokens=4096,
+        temperature=0
+    ).content[0].text
+    return extract_between_tags("rewritten_prompt", message)[0]
+
+
+def find_free_floating_variables(prompt):
+    variable_usages = re.findall(r'\{\$[A-Z0-9_]+\}', prompt)
+
+    free_floating_variables = []
+    for variable in variable_usages:
+        preceding_text = prompt[:prompt.index(variable)]
+        open_tags = set()
+
+        i = 0
+        while i < len(preceding_text):
+            if preceding_text[i] == '<':
+                if i + 1 < len(preceding_text) and preceding_text[i + 1] == '/':
+                    closing_tag = preceding_text[i + 2:].split('>', 1)[0]
+                    open_tags.discard(closing_tag)
+                    i += len(closing_tag) + 3
+                else:
+                    opening_tag = preceding_text[i + 1:].split('>', 1)[0]
+                    open_tags.add(opening_tag)
+                    i += len(opening_tag) + 2
+            else:
+                i += 1
+
+        if not open_tags:
+            free_floating_variables.append(variable)
+
+    return free_floating_variables
+
+
+def make_metaprompt(request):
+    ANTHROPIC_API_KEY = "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"  # Put your API key here!
+    MODEL_NAME = "claude-3-opus-20240229"
+    CLIENT = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+    metaprompt = open("meta_prompt.txt", "r", encoding="utf-8").read()
+    TASK = request
+    VARIABLES = ["CODE", "REqUEST"]
+
+    variable_string = ""
+    for variable in VARIABLES:
+        variable_string += "\n{$" + variable.upper() + "}"
+
+    prompt = metaprompt.replace("{{TASK}}", TASK)
+    assistant_partial = "<Inputs>"
+    if variable_string:
+        assistant_partial += variable_string + "\n</Inputs>\n<Instructions Structure>"
+
+    # 웹에서 프롬프트 직접 입력받기
+    st.subheader("메타프롬프트 생성")
+    st.write("아래 프롬프트를 사용하여 ChatGPT나 Claude와 대화를 진행하고, 결과를 복사하여 아래 텍스트 영역에 붙여넣으세요.")
+    st.code(prompt + "\n" + assistant_partial, language="text")
+
+    # 출력 결과 입력받기
+    message = st.text_area("ChatGPT 또는 Claude 출력 결과를 붙여넣으세요.")
+    if st.button('코드만 복사'):
+        global selected_code
+        pyperclip.copy(selected_code)
+    if message.strip() == "":
+        st.stop()
+
+    extracted_prompt_template = extract_prompt(message)
+    variables = extract_variables(message)
+
+    remove_floating_variables_prompt = open(
+        "remove_floating_variables_prompt.txt", "r", encoding="utf-8").read()
+
+    floating_variables = find_free_floating_variables(
+        extracted_prompt_template)
+
+    st.write(floating_variables)
+    if st.button('프롬프트'):
+        if len(floating_variables) > 0:
+            extracted_prompt_template_old = extracted_prompt_template
+            extracted_prompt_template_new = remove_inapt_floating_variables(
+                extracted_prompt_template, CLIENT, MODEL_NAME, remove_floating_variables_prompt)
+            st.write("새로운 프롬프트 템플릿:")
+            st.code(extracted_prompt_template_new, language="text")
+
+    variable_values = {}
+    for variable in variables:
+        variable_values[variable] = st.text_area(
+            f"변수 '{variable}'의 값을 입력하세요.")
+
+    prompt_with_variables = extracted_prompt_template
+    for variable in variable_values:
+        prompt_with_variables = prompt_with_variables.replace(
+            "{" + variable + "}", variable_values[variable])
+
+    st.subheader("최종 프롬프트")
+    # st.code(prompt_with_variables, language="text")
+    if st.button('복사'):
+        pyperclip.copy(prompt_with_variables + '한국어로 답변합니다.')
+    st.write("위의 프롬프트를 사용하여 ChatGPT나 Claude와 대화를 진행하세요.")
+
+
 def main():
     try:
-        st.set_page_config(page_title="트리 기반 클래스 관리 시스템", layout="wide")
-        st.title("트리 기반 클래스 관리")
+        st.set_page_config(page_title="트리 기반 자료 관리 시스템", layout="wide")
+        st.title("트리 기반 자료 관리")
 
         # 세션 상태 초기화
         if "nodes" not in st.session_state:
@@ -191,7 +337,7 @@ def main():
             parent_label = st.selectbox(
                 "부모 노드 선택", extract_node_labels(st.session_state.nodes))
             label = st.text_input("노드 레이블")
-            code = st.text_area("코드 내용")
+            code = st.text_area("내용 내용")
             if st.button("노드 추가"):
                 if not is_label_exists(st.session_state.nodes, label):
                     parent_node = find_node(
@@ -211,7 +357,7 @@ def main():
                 "수정할 노드 선택", extract_node_labels(st.session_state.nodes))
             edit_node = find_node(st.session_state.nodes, edit_label)
             if edit_node:
-                edit_code = st.text_area("코드 내용 수정", value=edit_node.code)
+                edit_code = st.text_area("내용 내용 수정", value=edit_node.code)
                 if st.button("노드 수정"):
                     edit_node.code = edit_code
             else:
@@ -259,12 +405,13 @@ def main():
 
         # 선택된 노드 출력
         selected_nodes = tree_result.get('checked', [])
-        st.subheader("선택된 클래스의 코드")
+        st.subheader("선택된 자료의 내용")
 
         # 요청 입력
         request = st.text_area("요청 입력", height=100)
 
         # 프롬프트 생성
+        global selected_code
         selected_code = get_selected_code(
             st.session_state.nodes, selected_nodes)
         prompt = f"{selected_code}\n\n"
@@ -285,6 +432,8 @@ def main():
             pyperclip.copy(prompt)
         if st.button('프롬프트 확인'):
             st.code(prompt, language="python")
+
+        make_metaprompt(request)
     except Exception as e:
         st.error(f"예기치 않은 오류가 발생했습니다: {str(e)}")
 
