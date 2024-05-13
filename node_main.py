@@ -262,7 +262,6 @@ def find_free_floating_variables(prompt):
 
 
 def make_metaprompt(request):
-    # ANTHROPIC_API_KEY = "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"  # Put your API key here!
     ANTHROPIC_API_KEY = load_api_key()
     MODEL_NAME = "claude-3-opus-20240229"
     CLIENT = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -456,7 +455,6 @@ def main():
             st.write("프롬프트 향상")
             user_prompt = st.text_area("프롬프트 입력", height=100)
 
-            # ANTHROPIC_API_KEY = "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"  # Put your API key here!
             ANTHROPIC_API_KEY = load_api_key()
             MODEL_NAME = "claude-3-sonnet-20240229"
             CLIENT = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
