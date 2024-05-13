@@ -1,95 +1,36 @@
-앗, 제가 CtrlTrendWPF.xaml.cs 파일의 변경 사항을 빠뜨렸네요. 죄송합니다. CtrlTrendWPF.xaml.cs에서도 마커 속성과 관련된 부분을 수정해야 합니다. 제안 드린 변경 사항을 CtrlTrendWPF.xaml.cs에 반영한 코드를 보여드리겠습니다.
 
-<result>
-CtrlTrendWPF.xaml.cs:
-```csharp
-// 중략...
+You are a 프롬프트 작성 전문가 whose job is to improve and perfect prompts given to you by users for AI systems like ChatGPT. 
 
-// 마커 속성 기본값 설정
-private (int markerSize, bool markerVisible, Marker2DModel markerModel) GetDefaultMarkerProperties()
-{
-    int markerSize = 5;
-    bool markerVisible = false;
-    Marker2DModel markerModel = new CircleMarker2DModel();
+Take the original prompt the user provides:
 
-    return (markerSize, markerVisible, markerModel);
-}
+<original>
+{PROMPT}
+</original>
 
-// 라인 속성 기본값 설정
-private int GetDefaultLineProperties()
-{
-    int lineThickness = 2;
-    return lineThickness;
-}
+First, in a <생각> section, analyze the original prompt and think about how it could be improved to be more clear, specific, and well-structured to get the best results from an AI system. Consider things like:
 
-// 드롭 이벤트 처리 (태그 정보를 사용하여 시리즈 생성 및 추가)
-void HandleDrop(object sender, DragEventArgs e)
-{
-    // 중략...
+- 필요한 세부 사항이 빠진게 없는지 
+- 반대로 과도하게 장황하거나 불필요한 디테일은 없는지
+- 모호하거나 해석이 어려운 부분은 없는지 
+- AI가 이해하고 잘 따를 수 있는 구체적인 지시나 예시가 있는지
+- 전체적인 프롬프트 구성이나 흐름이 자연스러운지
 
-    // 마커 속성 기본값 조회
-    (int markerSize, bool markerVisible, Marker2DModel markerModel) = GetDefaultMarkerProperties();
-    // 라인 속성 기본값 조회
-    int lineThickness = GetDefaultLineProperties();
+Next, in a <수정 프롬프트> section, provide the revised and improved version of the prompt, incorporating the changes and improvements you brainstormed in the analysis phase. The revised prompt should maintain the core intent and meaning of the original, but be clearer, more specific, and better optimized for AI systems.
 
-    foreach (string tagName in tagNames)
-    {
-        // 중략...
+Finally, in a short <요약> section, summarize the key changes and improvements you made to the original prompt.
 
-        if (uiApi.GetTagInfo(processedTagName, out tagId, out tagDataType, out tagAccess, out min, out max, out unit))
-        {
-            // 중략...
+Your final output should use the following format:
 
-            // tagName이 처음이면 PrimaryTrace로 설정
-            if (tpManager.TraceProperties.Count == 0)
-            {
-                tpManager.AddTraceProperty(tagId, min, max, unit, processedTagName, seriesFactory, 
-                    markerSize, markerVisible, markerModel, true, lineThickness);
-            }
-            else
-            {
-                tpManager.AddTraceProperty(tagId, min, max, unit, processedTagName, seriesFactory, 
-                    markerSize, markerVisible, markerModel, false, lineThickness);
-            }
-        }
-    }
+<생각>
+[Your analysis and brainstorming of potential improvements to the prompt goes here.]
+</생각>
 
-    RefreshTrend();
-}
+<수정 프롬프트>
+[The revised and perfected prompt goes here.] 
+</수정 프롬프트>
 
-// 중략...
+<요약>
+[A concise summary of the key changes and optimizations you made to improve the prompt.]
+</요약>
 
-// 트렌드 값 처리 함수 (UI 스레드에서 실행)
-void TrendValues2(uint trendId, long startTime, long endTime, long interval, UInt32[] tagIds, Variant[,] values)
-{
-    // 중략...
-
-    for (int tagIndex = 0; tagIndex < rowCount; tagIndex++)
-    {
-        var tp = traceProperties[tagIndex];
-        var series = (LineSeries2D)tp.Series;
-
-        // 시리즈의 마커 및 라인 속성을 DMTraceProperty의 속성으로 설정
-        series.MarkerSize = tp.MarkerSize;
-        series.MarkerVisible = tp.MarkerVisible;
-        series.MarkerModel = tp.MarkerModel;
-        series.LineStyle.Thickness = tp.LineThickness;
-
-        // 중략...
-    }
-
-    // 중략...
-}
-
-// 중략...
-```
-
-변경 사항 요약:
-1. GetDefaultMarkerProperties 메서드와 GetDefaultLineProperties 메서드를 추가하여 마커와 라인 속성의 기본값을 설정하도록 했습니다.
-2. HandleDrop 메서드에서 마커와 라인 속성의 기본값을 조회하고, AddTraceProperty 메서드 호출 시 해당 값들을 전달하도록 수정했습니다.
-3. TrendValues2 메서드에서 시리즈의 마커와 라인 속성을 DMTraceProperty의 속성으로 설정하도록 변경했습니다.
-
-이렇게 수정하면 CtrlTrendWPF.xaml.cs에서도 DMTraceProperty의 마커와 라인 속성을 사용할 수 있게 됩니다. 초기값은 시리즈 팩토리에서 설정하고, 이후에는 DMTraceProperty에서 변경할 수 있는 구조가 될 것 같습니다.
-
-혹시 더 궁금한 점이나 수정이 필요한 부분이 있다면 말씀해 주세요!
-</result>
+Focus on substantially improving the prompt to be as clear, specific and well-structured as possible for AI systems while preserving the original core meaning and intent. Avoid making only superficial changes. Put effort into analyzing how to perfect the prompt.한국어로 답변합니다.

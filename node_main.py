@@ -29,6 +29,7 @@ class Node:
         }
 
 
+@st.cache_resource
 def load_prompts():
     try:
         comment_prompt = open("comment_prompt.txt", "r",
@@ -43,6 +44,20 @@ def load_prompts():
     except Exception as e:
         st.error(f"프롬프트 파일을 읽는 중 오류가 발생했습니다: {str(e)}")
         return "", "", ""
+
+
+@st.cache_resource
+def load_api_key():
+    try:
+        with open("api_key.txt", "r") as file:
+            api_key = file.read().strip()
+        return api_key
+    except FileNotFoundError:
+        st.error("API 키 파일이 존재하지 않습니다.")
+        return ""
+    except Exception as e:
+        st.error(f"API 키 파일을 읽는 중 오류가 발생했습니다: {str(e)}")
+        return ""
 
 
 def get_selected_code(nodes, selected_nodes):
@@ -247,7 +262,8 @@ def find_free_floating_variables(prompt):
 
 
 def make_metaprompt(request):
-    ANTHROPIC_API_KEY = ""  # Put your API key here!
+    # ANTHROPIC_API_KEY = "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"  # Put your API key here!
+    ANTHROPIC_API_KEY = load_api_key()
     MODEL_NAME = "claude-3-opus-20240229"
     CLIENT = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
@@ -274,42 +290,41 @@ def make_metaprompt(request):
     if st.button('코드만 복사'):
         global selected_code
         pyperclip.copy(selected_code)
-    if message.strip() == "":
-        st.stop()
+    if message.strip() != "":
 
-    extracted_prompt_template = extract_prompt(message)
-    variables = extract_variables(message)
+        extracted_prompt_template = extract_prompt(message)
+        variables = extract_variables(message)
 
-    remove_floating_variables_prompt = open(
-        "remove_floating_variables_prompt.txt", "r", encoding="utf-8").read()
+        remove_floating_variables_prompt = open(
+            "remove_floating_variables_prompt.txt", "r", encoding="utf-8").read()
 
-    floating_variables = find_free_floating_variables(
-        extracted_prompt_template)
+        floating_variables = find_free_floating_variables(
+            extracted_prompt_template)
 
-    st.write(floating_variables)
-    if st.button('프롬프트'):
-        if len(floating_variables) > 0:
-            extracted_prompt_template_old = extracted_prompt_template
-            extracted_prompt_template_new = remove_inapt_floating_variables(
-                extracted_prompt_template, CLIENT, MODEL_NAME, remove_floating_variables_prompt)
-            st.write("새로운 프롬프트 템플릿:")
-            st.code(extracted_prompt_template_new, language="text")
+        st.write(floating_variables)
+        if st.button('프롬프트'):
+            if len(floating_variables) > 0:
+                extracted_prompt_template_old = extracted_prompt_template
+                extracted_prompt_template_new = remove_inapt_floating_variables(
+                    extracted_prompt_template, CLIENT, MODEL_NAME, remove_floating_variables_prompt)
+                st.write("새로운 프롬프트 템플릿:")
+                st.code(extracted_prompt_template_new, language="text")
 
-    variable_values = {}
-    for variable in variables:
-        variable_values[variable] = st.text_area(
-            f"변수 '{variable}'의 값을 입력하세요.")
+        variable_values = {}
+        for variable in variables:
+            variable_values[variable] = st.text_area(
+                f"변수 '{variable}'의 값을 입력하세요.")
 
-    prompt_with_variables = extracted_prompt_template
-    for variable in variable_values:
-        prompt_with_variables = prompt_with_variables.replace(
-            "{" + variable + "}", variable_values[variable])
+        prompt_with_variables = extracted_prompt_template
+        for variable in variable_values:
+            prompt_with_variables = prompt_with_variables.replace(
+                "{" + variable + "}", variable_values[variable])
 
-    st.subheader("최종 프롬프트")
-    # st.code(prompt_with_variables, language="text")
-    if st.button('복사'):
-        pyperclip.copy(prompt_with_variables + '한국어로 답변합니다.')
-    st.write("위의 프롬프트를 사용하여 ChatGPT나 Claude와 대화를 진행하세요.")
+        st.subheader("최종 프롬프트")
+        # st.code(prompt_with_variables, language="text")
+        if st.button('복사'):
+            pyperclip.copy(prompt_with_variables + '한국어로 답변합니다.')
+        st.write("위의 프롬프트를 사용하여 ChatGPT나 Claude와 대화를 진행하세요.")
 
 
 def main():
@@ -433,7 +448,33 @@ def main():
         if st.button('프롬프트 확인'):
             st.code(prompt, language="python")
 
-        make_metaprompt(request)
+        tab1, tab2, tab3 = st.tabs(["선택된 자료", "메타프롬프트 생성", "프롬프트 향상"])
+        with tab2:
+            make_metaprompt(request)
+
+        with tab3:
+            st.write("프롬프트 향상")
+            user_prompt = st.text_area("프롬프트 입력", height=100)
+
+            # ANTHROPIC_API_KEY = "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"  # Put your API key here!
+            ANTHROPIC_API_KEY = load_api_key()
+            MODEL_NAME = "claude-3-sonnet-20240229"
+            CLIENT = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+            if st.button("프롬프트 향상"):
+                improve_prompt = open(
+                    "prompt_improvement.txt", "r", encoding="utf-8").read()
+                message = CLIENT.messages.create(
+                    model=MODEL_NAME,
+                    messages=[{'role': "user", "content": improve_prompt.replace(
+                        "{$REQUEST}", user_prompt)}],
+                    max_tokens=4096,
+                    temperature=0
+                ).content[0].text
+
+                if st.button('향상된 프롬프트 복사'):
+                    pyperclip.copy(message)
+
     except Exception as e:
         st.error(f"예기치 않은 오류가 발생했습니다: {str(e)}")
 
