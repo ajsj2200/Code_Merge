@@ -247,7 +247,7 @@ def find_free_floating_variables(prompt):
 
 
 def make_metaprompt(request):
-    ANTHROPIC_API_KEY = "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"  # Put your API key here!
+    ANTHROPIC_API_KEY = ""  # Put your API key here!
     MODEL_NAME = "claude-3-opus-20240229"
     CLIENT = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
