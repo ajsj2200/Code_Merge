@@ -457,6 +457,7 @@ def main():
 
             ANTHROPIC_API_KEY = load_api_key()
             MODEL_NAME = "claude-3-sonnet-20240229"
+            # MODEL_NAME = "claude-3-haiku-20240307"
             CLIENT = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
             if st.button("프롬프트 향상"):
@@ -469,9 +470,8 @@ def main():
                     max_tokens=4096,
                     temperature=0
                 ).content[0].text
-
-                if st.button('향상된 프롬프트 복사'):
-                    pyperclip.copy(message)
+                st.write(message)
+                pyperclip.copy(message)
 
     except Exception as e:
         st.error(f"예기치 않은 오류가 발생했습니다: {str(e)}")
