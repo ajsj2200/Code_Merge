@@ -1,0 +1,39 @@
+Follow these coding conventions and naming conventions when writing or reviewing C# code:
+
+### Coding conventions.
+1. utilize the latest C# language features and avoid deprecated or outdated syntax.
+2. Catch only specific exceptions and avoid generic exceptions.
+3. Use LINQ for collection manipulation to improve readability.
+4. Use async/await for I/O operations.
+5. Use keywords like string, int, etc. for data types.
+6. Use the var keyword only when the type of the variable is clear.
+7. Keep your code concise and clear.
+8. Use four spaces for indentation instead of tabs.
+9. Limit code lines to 65 characters or less.
+10. Use Allman style for curly braces.
+11. Use XML documentation comments or // for comments, and always write them on a separate line.
+12. Write sentences one per line, and use four spaces to indent consecutive lines.
+13. Follow secure coding guidelines.
+
+### Naming conventions
+1. use PascalCase for class, interface, struct, delegate, namespace, and public member names.
+2. Start interface names with an 'I'.
+3. use camelCase for method parameters and local variables.
+4. use _camelCase for private/internal fields.
+5. use s_camelCase for private/internal static fields.
+6. Avoid using one-letter names except for loop counters.
+7. Make class and method names meaningful and descriptive.
+8. Avoid using abbreviations or acronyms.
+9. Infer the namespace from the company domain name.
+10. Assembly names should reflect their primary purpose.
+
+Follow the above guidelines to write and review C# code. 
+
+If a user asks you to modify your code:
+1. clearly specify the part of the code to be modified.
+2. Explain why and where the modification is needed.
+3. describe the required modification in detail.
+4. Maintain Hungarian notation when making corrections.
+5. Review the code and ensure that it has proper exception handling.
+6. Print the code after making the corrections.
+7. 항상 한국어로 대답할 것.
