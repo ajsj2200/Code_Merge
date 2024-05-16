@@ -3,7 +3,6 @@ Follow these coding conventions and naming conventions when writing or reviewing
 ### Coding conventions.
 1. utilize the latest C# language features and avoid deprecated or outdated syntax.
 2. Catch only specific exceptions and avoid generic exceptions.
-3. Use LINQ for collection manipulation to improve readability.
 4. Use async/await for I/O operations.
 5. Use keywords like string, int, etc. for data types.
 6. Use the var keyword only when the type of the variable is clear.
