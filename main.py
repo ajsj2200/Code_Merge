@@ -6,6 +6,7 @@ import base64
 import pyperclip
 import re
 import anthropic
+import time
 
 
 class Node:
@@ -31,44 +32,54 @@ class Node:
         }
 
 
-def directory_to_tree(path, allowed_extensions=None):
-    # Check if allowed_extensions is None, if so, set it to ['.cs']
+def count_files_in_directory(path, allowed_extensions):
+    total_files = 0
+    for root, dirs, files in os.walk(path):
+        for file in files:
+            if os.path.splitext(file)[1] in allowed_extensions:
+                total_files += 1
+    return total_files
+
+
+def directory_to_tree(path, allowed_extensions=None, progress=None, processed_files=0, total_files=1):
     if allowed_extensions is None:
         allowed_extensions = ['.cs']
 
-    # Get the name of the directory or file
     name = os.path.basename(path)
-    # Create a Node object with the name and id set to the path
     node = Node(name, id=path)
 
-    # Check if the path is a directory
+    if progress is None:
+        total_files = count_files_in_directory(path, allowed_extensions)
+        progress = st.progress(0)
+
     if os.path.isdir(path):
-        # Iterate over the children in the directory
         for child in os.listdir(path):
-            # Get the full path of the child
             child_path = os.path.join(path, child)
             try:
-                # Recursively call directory_to_tree on the child path
-                child_node = directory_to_tree(child_path, allowed_extensions)
-                # Only add child nodes if they contain children or code (i.e., they are not empty)
+                child_node, processed_files = directory_to_tree(
+                    child_path, allowed_extensions, progress, processed_files, total_files)
                 if child_node.children or child_node.code:
                     node.add_child(child_node)
             except Exception as e:
                 print(f"Error processing child node: {child_path}")
                 print(str(e))
     else:
-        # Get the file extension of the path
         file_extension = os.path.splitext(path)[1]
-        # Check if the file extension is in the allowed_extensions list
         if file_extension in allowed_extensions:
             try:
-                # Read the contents of the file and assign it to the code attribute of the node
                 with open(path, 'r', encoding='utf-8') as file:
                     node.code = file.read()
+                processed_files += 1
+                progress.progress(processed_files / total_files)
             except Exception as e:
                 print(f"Error reading file: {path}")
                 print(str(e))
-    return node
+
+    # 다 끝나면 progress bar 제거
+    if processed_files == total_files:
+        progress.empty()
+
+    return node, processed_files
 
 
 @st.cache_resource
@@ -127,7 +138,7 @@ def display_selected_codes(nodes):
             selected_codes.append(f"자료 이름 : {node.label} \n\n{node.code}")
     if selected_codes:
         code_text = "\n\n".join(selected_codes)
-        st.code(code_text, language="python")
+        st.code(code_text)
     else:
         st.write("선택된 자료가 없습니다.")
 
@@ -426,11 +437,9 @@ def main():
             directory_path = st.text_input("디렉토리 경로 입력")
             if st.button("디렉토리 트리 추가"):
                 if os.path.exists(directory_path):
-                    # 기존 노드 삭제
                     st.session_state.nodes = []
                     st.session_state.expanded_nodes = []
-
-                    directory_node = directory_to_tree(directory_path)
+                    directory_node, _ = directory_to_tree(directory_path)
                     st.session_state.nodes.append(directory_node)
                     st.session_state.expanded_nodes.append(directory_node.id)
                 else:
@@ -502,6 +511,8 @@ def main():
             st.code(prompt, language="python")
 
         tab1, tab2, tab3 = st.tabs(["선택된 자료", "메타프롬프트 생성", "프롬프트 향상"])
+        with tab1:
+            display_selected_codes(selected_nodes)
         with tab2:
             make_metaprompt(request)
 
