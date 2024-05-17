@@ -43,7 +43,7 @@ def count_files_in_directory(path, allowed_extensions):
 
 def directory_to_tree(path, allowed_extensions=None, progress=None, processed_files=0, total_files=1):
     if allowed_extensions is None:
-        allowed_extensions = ['.cs']
+        allowed_extensions = ['.cs', '.py', '.txt']
 
     name = os.path.basename(path)
     node = Node(name, id=path)
@@ -138,7 +138,8 @@ def display_selected_codes(nodes):
             selected_codes.append(f"자료 이름 : {node.label} \n\n{node.code}")
     if selected_codes:
         code_text = "\n\n".join(selected_codes)
-        st.code(code_text)
+        # st.code(code_text)
+        st.text_area("선택된 자료의 내용", code_text, height=500)
     else:
         st.write("선택된 자료가 없습니다.")
 
@@ -283,7 +284,9 @@ def remove_inapt_floating_variables(prompt, CLIENT, MODEL_NAME, remove_floating_
         max_tokens=4096,
         temperature=0
     ).content[0].text
-    return extract_between_tags("rewritten_prompt", message)[0]
+    return extract_between_tags("rewritten_prompt", message
+
+                                )[0]
 
 
 def extract_node_labels_with_paths(nodes):
@@ -437,11 +440,17 @@ def main():
             directory_path = st.text_input("디렉토리 경로 입력")
             if st.button("디렉토리 트리 추가"):
                 if os.path.exists(directory_path):
-                    st.session_state.nodes = []
-                    st.session_state.expanded_nodes = []
-                    directory_node, _ = directory_to_tree(directory_path)
-                    st.session_state.nodes.append(directory_node)
-                    st.session_state.expanded_nodes.append(directory_node.id)
+                    # 디렉토리 경로와 일치하는 노드를 찾아서 삭제
+                    nodes_to_remove = [
+                        node for node in st.session_state.nodes if node.id.startswith(directory_path)]
+                    for node in nodes_to_remove:
+                        remove_node(st.session_state.nodes, node.id)
+
+                    # 새롭게 디렉토리 트리를 추가
+                    new_directory_node, _ = directory_to_tree(directory_path)
+                    st.session_state.nodes.append(new_directory_node)
+                    st.session_state.expanded_nodes.append(
+                        new_directory_node.id)
                 else:
                     st.error("디렉토리 경로가 존재하지 않습니다.")
 
