@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 from streamlit_tree_select import tree_select
 import json
@@ -5,14 +6,14 @@ import base64
 import pyperclip
 import re
 import anthropic
-import os
 
 
 class Node:
-    def __init__(self, label, code="", children=None):
+    def __init__(self, label, code="", children=None, id=None):
         self.label = label
         self.code = code
         self.children = children or []
+        self.id = id or label
 
     def add_child(self, node):
         self.children.append(node)
@@ -24,10 +25,50 @@ class Node:
     def to_dict(self):
         return {
             "label": self.label,
-            "value": self.label,
+            "value": self.id,
             "code": self.code,
             "children": [child.to_dict() for child in self.children]
         }
+
+
+def directory_to_tree(path, allowed_extensions=None):
+    # Check if allowed_extensions is None, if so, set it to ['.cs']
+    if allowed_extensions is None:
+        allowed_extensions = ['.cs']
+
+    # Get the name of the directory or file
+    name = os.path.basename(path)
+    # Create a Node object with the name and id set to the path
+    node = Node(name, id=path)
+
+    # Check if the path is a directory
+    if os.path.isdir(path):
+        # Iterate over the children in the directory
+        for child in os.listdir(path):
+            # Get the full path of the child
+            child_path = os.path.join(path, child)
+            try:
+                # Recursively call directory_to_tree on the child path
+                child_node = directory_to_tree(child_path, allowed_extensions)
+                # Only add child nodes if they contain children or code (i.e., they are not empty)
+                if child_node.children or child_node.code:
+                    node.add_child(child_node)
+            except Exception as e:
+                print(f"Error processing child node: {child_path}")
+                print(str(e))
+    else:
+        # Get the file extension of the path
+        file_extension = os.path.splitext(path)[1]
+        # Check if the file extension is in the allowed_extensions list
+        if file_extension in allowed_extensions:
+            try:
+                # Read the contents of the file and assign it to the code attribute of the node
+                with open(path, 'r', encoding='utf-8') as file:
+                    node.code = file.read()
+            except Exception as e:
+                print(f"Error reading file: {path}")
+                print(str(e))
+    return node
 
 
 @st.cache_resource
@@ -121,7 +162,8 @@ def load_nodes_from_json(json_data):
 
 
 def load_node_from_dict(node_data):
-    node = Node(node_data['label'], node_data.get('code', ''))
+    node = Node(node_data['label'], node_data.get(
+        'code', ''), id=node_data.get('value', node_data['label']))
     for child_data in node_data.get('children', []):
         child_node = load_node_from_dict(child_data)
         node.add_child(child_node)
@@ -131,48 +173,48 @@ def load_node_from_dict(node_data):
 def extract_node_labels(nodes):
     labels = []
     for node in nodes:
-        labels.append(node.label)
+        labels.append(node.id)
         labels.extend(extract_node_labels(node.children))
     return labels
 
 
-def find_node(nodes, label):
+def find_node(nodes, id):
     for node in nodes:
-        if node.label == label:
+        if node.id == id:
             return node
-        found_node = find_node(node.children, label)
+        found_node = find_node(node.children, id)
         if found_node:
             return found_node
     return None
 
 
-def remove_node(nodes, label):
+def remove_node(nodes, id):
     for i, node in enumerate(nodes):
-        if node.label == label:
+        if node.id == id:
             nodes.pop(i)
-            remove_expanded_node(label)
+            remove_expanded_node(id)
             remove_expanded_children(node)
             return True
-        if remove_node(node.children, label):
+        if remove_node(node.children, id):
             return True
     return False
 
 
-def remove_expanded_node(label):
-    if label in st.session_state.expanded_nodes:
-        st.session_state.expanded_nodes.remove(label)
+def remove_expanded_node(id):
+    if id in st.session_state.expanded_nodes:
+        st.session_state.expanded_nodes.remove(id)
 
 
 def remove_expanded_children(node):
     for child in node.children:
-        remove_expanded_node(child.label)
+        remove_expanded_node(child.id)
         remove_expanded_children(child)
 
 
 def extract_all_node_labels(nodes):
     labels = []
     for node in nodes:
-        labels.append(node.label)
+        labels.append(node.id)
         labels.extend(extract_all_node_labels(node.children))
     return labels
 
@@ -231,6 +273,28 @@ def remove_inapt_floating_variables(prompt, CLIENT, MODEL_NAME, remove_floating_
         temperature=0
     ).content[0].text
     return extract_between_tags("rewritten_prompt", message)[0]
+
+
+def extract_node_labels_with_paths(nodes):
+    labels = []
+    for node in nodes:
+        labels.append((os.path.basename(node.id), node.id))
+        labels.extend(extract_node_labels_with_paths(node.children))
+    return labels
+
+
+def extract_node_labels(nodes):
+    return [label for label, _ in extract_node_labels_with_paths(nodes)]
+
+
+def find_node_by_path(nodes, path):
+    for node in nodes:
+        if node.id == path:
+            return node
+        found_node = find_node_by_path(node.children, path)
+        if found_node:
+            return found_node
+    return None
 
 
 def find_free_floating_variables(prompt):
@@ -332,20 +396,24 @@ def main():
 
         if "expanded_nodes" not in st.session_state:
             st.session_state.expanded_nodes = [
-                node.label for node in st.session_state.nodes]
+                node.id for node in st.session_state.nodes]
 
         with st.sidebar:
             st.subheader("노드 관리")
 
             st.subheader("노드 추가")
+            node_labels_with_paths = extract_node_labels_with_paths(
+                st.session_state.nodes)
             parent_label = st.selectbox(
-                "부모 노드 선택", extract_node_labels(st.session_state.nodes))
+                "부모 노드 선택", [label for label, _ in node_labels_with_paths])
             label = st.text_input("노드 레이블")
             code = st.text_area("내용 내용")
             if st.button("노드 추가"):
                 if not is_label_exists(st.session_state.nodes, label):
-                    parent_node = find_node(
-                        st.session_state.nodes, parent_label)
+                    parent_path = next(
+                        path for label, path in node_labels_with_paths if label == parent_label)
+                    parent_node = find_node_by_path(
+                        st.session_state.nodes, parent_path)
                     if parent_node:
                         parent_node.add_child(Node(label, code))
                     else:
@@ -354,10 +422,26 @@ def main():
                 else:
                     st.warning("중복된 노드 라벨입니다. 다른 라벨을 사용해주세요.")
 
+            st.subheader("디렉토리 트리 추가")
+            directory_path = st.text_input("디렉토리 경로 입력")
+            if st.button("디렉토리 트리 추가"):
+                if os.path.exists(directory_path):
+                    # 기존 노드 삭제
+                    st.session_state.nodes = []
+                    st.session_state.expanded_nodes = []
+
+                    directory_node = directory_to_tree(directory_path)
+                    st.session_state.nodes.append(directory_node)
+                    st.session_state.expanded_nodes.append(directory_node.id)
+                else:
+                    st.error("디렉토리 경로가 존재하지 않습니다.")
+
             st.subheader("노드 수정")
             edit_label = st.selectbox(
-                "수정할 노드 선택", extract_node_labels(st.session_state.nodes))
-            edit_node = find_node(st.session_state.nodes, edit_label)
+                "수정할 노드 선택", [label for label, _ in node_labels_with_paths])
+            edit_path = next(
+                path for label, path in node_labels_with_paths if label == edit_label)
+            edit_node = find_node_by_path(st.session_state.nodes, edit_path)
             if edit_node:
                 edit_code = st.text_area("내용 내용 수정", value=edit_node.code)
                 if st.button("노드 수정"):
@@ -367,22 +451,23 @@ def main():
 
             st.subheader("노드 삭제")
             delete_label = st.selectbox(
-                "삭제할 노드 선택", extract_node_labels(st.session_state.nodes))
+                "삭제할 노드 선택", [label for label, _ in node_labels_with_paths])
+            delete_path = next(
+                path for label, path in node_labels_with_paths if label == delete_label)
             if st.button("노드 삭제"):
-                if remove_node(st.session_state.nodes, delete_label):
-                    st.session_state.expanded_nodes.remove(delete_label)
+                if remove_node(st.session_state.nodes, delete_path):
+                    st.session_state.expanded_nodes.remove(delete_path)
 
             st.subheader("다운로드 및 업로드")
             st.markdown(download_json_file(st.session_state.nodes,
                         "nodes.json"), unsafe_allow_html=True)
 
             uploaded_file = st.file_uploader("노드 구조 파일 업로드", type=["json"])
-            st.write("파일 업로드하고나서 삭제할 것")
             if uploaded_file is not None:
                 json_data = uploaded_file.read().decode("utf-8")
                 st.session_state.nodes = load_nodes_from_json(json_data)
                 st.session_state.expanded_nodes = [
-                    node.label for node in st.session_state.nodes]
+                    node.id for node in st.session_state.nodes]
 
         tree_result = tree_select(
             [node.to_dict() for node in st.session_state.nodes],
