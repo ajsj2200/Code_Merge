@@ -7,6 +7,7 @@ import pyperclip
 import re
 import anthropic
 import time
+import shutil
 
 
 class Node:
@@ -41,9 +42,52 @@ def count_files_in_directory(path, allowed_extensions):
     return total_files
 
 
-def directory_to_tree(path, allowed_extensions=None, progress=None, processed_files=0, total_files=1):
+def extract_text_between_brackets(content):
+    #
+    pattern = re.compile(r'\[\[(.*?)\]\]')
+    return pattern.findall(content)
+
+
+def read_file(file_path):
+    try:
+        with open(file_path, 'r', encoding='utf-8') as file:
+            return file.read()
+    except Exception as e:
+        print(f"Error reading file: {file_path}")
+        print(str(e))
+        return None
+
+
+def process_md_file(file_path, nested_files_path):
+    content = read_file(file_path)
+    if content:
+        extracted_texts = extract_text_between_brackets(content)
+        # print(extracted_texts)
+        all_extracted_texts = []
+
+        for text in extracted_texts:
+            # Check if the extracted text refers to another file in the nested files path
+            ref_file_path = nested_files_path + f"/{text}.md"
+            if os.path.exists(ref_file_path):
+                print(file_path, ref_file_path)
+                # file_path의 상위 폴더에 파일 이름 + ref_file_path 파일을 복사
+                # shutil.move(ref_file_path, os.path.dirname(file_path))
+                # ref_extracted_texts = process_md_file(
+                # ref_file_path, nested_files_path)
+                # all_extracted_texts.extend(ref_extracted_texts)
+            # else:
+            #     all_extracted_texts.append(text)
+
+        return all_extracted_texts
+    return []
+
+
+tmp = []
+
+
+def directory_to_tree(path, nested_files_path, allowed_extensions=None, progress=None, processed_files=0, total_files=1):
     if allowed_extensions is None:
-        allowed_extensions = ['.cs', '.py', '.txt']
+        allowed_extensions = ['.cs', '.py', '.txt', '.md']
 
     name = os.path.basename(path)
     node = Node(name, id=path)
@@ -57,7 +101,7 @@ def directory_to_tree(path, allowed_extensions=None, progress=None, processed_fi
             child_path = os.path.join(path, child)
             try:
                 child_node, processed_files = directory_to_tree(
-                    child_path, allowed_extensions, progress, processed_files, total_files)
+                    child_path, nested_files_path, allowed_extensions, progress, processed_files, total_files)
                 if child_node.children or child_node.code:
                     node.add_child(child_node)
             except Exception as e:
@@ -65,7 +109,7 @@ def directory_to_tree(path, allowed_extensions=None, progress=None, processed_fi
                 print(str(e))
     else:
         file_extension = os.path.splitext(path)[1]
-        if file_extension in allowed_extensions:
+        if file_extension == '.cs':
             try:
                 with open(path, 'r', encoding='utf-8') as file:
                     node.code = file.read()
@@ -74,6 +118,53 @@ def directory_to_tree(path, allowed_extensions=None, progress=None, processed_fi
             except Exception as e:
                 print(f"Error reading file: {path}")
                 print(str(e))
+        elif file_extension == '.py':
+            try:
+                with open(path, 'r', encoding='utf-8') as file:
+                    node.code = file.read()
+                processed_files += 1
+                progress.progress(processed_files / total_files)
+            except Exception as e:
+                print(f"Error reading file: {path}")
+                print(str(e))
+        elif file_extension == '.txt':
+            try:
+                with open(path, 'r', encoding='utf-8') as file:
+                    node.code = file.read()
+                processed_files += 1
+                progress.progress(processed_files / total_files)
+            except Exception as e:
+                print(f"Error reading file: {path}")
+                print(str(e))
+        elif file_extension == '.md':
+            try:
+                with open(path, 'r', encoding='utf-8') as file:
+                    node.code = file.read()
+                processed_files += 1
+                progress.progress(processed_files / total_files)
+
+                # 상위 디렉토리 이름과 파일 이름 비교
+                # parent_directory_name = os.path.basename(os.path.dirname(path))
+                # file_name_without_extension = os.path.splitext(
+                # os.path.basename(path))[0]
+
+                # 상위 디렉토리 이름과 파일 이름이 같으면 파일 내용 추출
+                # if parent_directory_name == file_name_without_extension:
+                # print(parent_directory_name, path)
+                # print(path)
+                # extracted_texts = process_md_file(path, nested_files_path)
+                # if extracted_texts:
+                # st.write(f"Extracted texts from {path}:")
+                # st.write(extracted_texts)
+                # tmp.append(extracted_texts)
+                # for text in extracted_texts:
+                #     st.write(text)
+
+            except Exception as e:
+                print(f"Error reading file: {path}")
+                print(str(e))
+        else:
+            print(f"Unsupported file extension: {file_extension}")
 
     # 다 끝나면 progress bar 제거
     if processed_files == total_files:
@@ -438,6 +529,8 @@ def main():
 
             st.subheader("디렉토리 트리 추가")
             directory_path = st.text_input("디렉토리 경로 입력")
+            st_allowed_extensions = st.multiselect(
+                "포함할 파일 확장자 선택", [".cs", ".py", ".txt", "hwp", "csv", "pdf", ".md"], default=[".cs", ".py", ".txt"])
             if st.button("디렉토리 트리 추가"):
                 if os.path.exists(directory_path):
                     # 디렉토리 경로와 일치하는 노드를 찾아서 삭제
@@ -447,10 +540,20 @@ def main():
                         remove_node(st.session_state.nodes, node.id)
 
                     # 새롭게 디렉토리 트리를 추가
-                    new_directory_node, _ = directory_to_tree(directory_path)
+                    nested_path = "C:/Users/ajsj2/OneDrive/문서/Obsidian Vault/부속품"
+                    new_directory_node, _ = directory_to_tree(
+                        directory_path, nested_path, st_allowed_extensions)
                     st.session_state.nodes.append(new_directory_node)
                     st.session_state.expanded_nodes.append(
                         new_directory_node.id)
+                    # tmp에서 .이 없는 것만 추출
+                    tmp_null = []
+                    for i in range(len(tmp)):
+                        for j in range(len(tmp[i])):
+                            if '.' not in tmp[i][j]:
+                                print(tmp[i][j])
+                                tmp_null.append(tmp[i][j])
+
                 else:
                     st.error("디렉토리 경로가 존재하지 않습니다.")
 
