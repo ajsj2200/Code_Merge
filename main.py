@@ -7,7 +7,6 @@ import pyperclip
 import re
 import anthropic
 import time
-import shutil
 
 
 class Node:
@@ -42,12 +41,6 @@ def count_files_in_directory(path, allowed_extensions):
     return total_files
 
 
-def extract_text_between_brackets(content):
-    #
-    pattern = re.compile(r'\[\[(.*?)\]\]')
-    return pattern.findall(content)
-
-
 def read_file(file_path):
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
@@ -58,34 +51,7 @@ def read_file(file_path):
         return None
 
 
-def process_md_file(file_path, nested_files_path):
-    content = read_file(file_path)
-    if content:
-        extracted_texts = extract_text_between_brackets(content)
-        # print(extracted_texts)
-        all_extracted_texts = []
-
-        for text in extracted_texts:
-            # Check if the extracted text refers to another file in the nested files path
-            ref_file_path = nested_files_path + f"/{text}.md"
-            if os.path.exists(ref_file_path):
-                print(file_path, ref_file_path)
-                # file_path의 상위 폴더에 파일 이름 + ref_file_path 파일을 복사
-                # shutil.move(ref_file_path, os.path.dirname(file_path))
-                # ref_extracted_texts = process_md_file(
-                # ref_file_path, nested_files_path)
-                # all_extracted_texts.extend(ref_extracted_texts)
-            # else:
-            #     all_extracted_texts.append(text)
-
-        return all_extracted_texts
-    return []
-
-
-tmp = []
-
-
-def directory_to_tree(path, nested_files_path, allowed_extensions=None, progress=None, processed_files=0, total_files=1):
+def directory_to_tree(path, allowed_extensions=None, progress=None, processed_files=0, total_files=1):
     if allowed_extensions is None:
         allowed_extensions = ['.cs', '.py', '.txt', '.md']
 
@@ -101,7 +67,7 @@ def directory_to_tree(path, nested_files_path, allowed_extensions=None, progress
             child_path = os.path.join(path, child)
             try:
                 child_node, processed_files = directory_to_tree(
-                    child_path, nested_files_path, allowed_extensions, progress, processed_files, total_files)
+                    child_path, allowed_extensions, progress, processed_files, total_files)
                 if child_node.children or child_node.code:
                     node.add_child(child_node)
             except Exception as e:
@@ -109,62 +75,10 @@ def directory_to_tree(path, nested_files_path, allowed_extensions=None, progress
                 print(str(e))
     else:
         file_extension = os.path.splitext(path)[1]
-        if file_extension == '.cs':
-            try:
-                with open(path, 'r', encoding='utf-8') as file:
-                    node.code = file.read()
-                processed_files += 1
-                progress.progress(processed_files / total_files)
-            except Exception as e:
-                print(f"Error reading file: {path}")
-                print(str(e))
-        elif file_extension == '.py':
-            try:
-                with open(path, 'r', encoding='utf-8') as file:
-                    node.code = file.read()
-                processed_files += 1
-                progress.progress(processed_files / total_files)
-            except Exception as e:
-                print(f"Error reading file: {path}")
-                print(str(e))
-        elif file_extension == '.txt':
-            try:
-                with open(path, 'r', encoding='utf-8') as file:
-                    node.code = file.read()
-                processed_files += 1
-                progress.progress(processed_files / total_files)
-            except Exception as e:
-                print(f"Error reading file: {path}")
-                print(str(e))
-        elif file_extension == '.md':
-            try:
-                with open(path, 'r', encoding='utf-8') as file:
-                    node.code = file.read()
-                processed_files += 1
-                progress.progress(processed_files / total_files)
-
-                # 상위 디렉토리 이름과 파일 이름 비교
-                # parent_directory_name = os.path.basename(os.path.dirname(path))
-                # file_name_without_extension = os.path.splitext(
-                # os.path.basename(path))[0]
-
-                # 상위 디렉토리 이름과 파일 이름이 같으면 파일 내용 추출
-                # if parent_directory_name == file_name_without_extension:
-                # print(parent_directory_name, path)
-                # print(path)
-                # extracted_texts = process_md_file(path, nested_files_path)
-                # if extracted_texts:
-                # st.write(f"Extracted texts from {path}:")
-                # st.write(extracted_texts)
-                # tmp.append(extracted_texts)
-                # for text in extracted_texts:
-                #     st.write(text)
-
-            except Exception as e:
-                print(f"Error reading file: {path}")
-                print(str(e))
-        else:
-            print(f"Unsupported file extension: {file_extension}")
+        if file_extension in allowed_extensions:
+            node.code = path  # 파일 경로만 저장
+            processed_files += 1
+            progress.progress(processed_files / total_files)
 
     # 다 끝나면 progress bar 제거
     if processed_files == total_files:
@@ -211,13 +125,19 @@ def load_api_key():
         return ""
 
 
-def get_selected_code(nodes, selected_nodes):
+def get_selected_code(selected_nodes):
     selected_codes = []
     for node_label in selected_nodes:
-        node = find_node(nodes, node_label)
+        node = find_node(st.session_state.nodes, node_label)
         if node:
-            selected_codes.append(f"########################\n 자료 이름 : {
-                                  node.label} \n\n{node.code}")
+            if os.path.exists(node.code):  # 파일 경로가 유효한지 확인
+                file_content = read_file(node.code)
+                if file_content:
+                    selected_codes.append(f"########################\n 자료 이름 : {
+                                          node.label} \n\n{file_content}")
+            else:
+                selected_codes.append(f"########################\n 자료 이름 : {
+                                      node.label} \n\n{node.code}")
     return "\n\n".join(selected_codes)
 
 
@@ -226,10 +146,15 @@ def display_selected_codes(nodes):
     for node_label in nodes:
         node = find_node(st.session_state.nodes, node_label)
         if node:
-            selected_codes.append(f"자료 이름 : {node.label} \n\n{node.code}")
+            if os.path.exists(node.code):  # 파일 경로가 유효한지 확인
+                file_content = read_file(node.code)
+                if file_content:
+                    selected_codes.append(
+                        f"자료 이름 : {node.label} \n\n{file_content}")
+            else:
+                selected_codes.append(f"자료 이름 : {node.label} \n\n{node.code}")
     if selected_codes:
         code_text = "\n\n".join(selected_codes)
-        # st.code(code_text)
         st.text_area("선택된 자료의 내용", code_text, height=500)
     else:
         st.write("선택된 자료가 없습니다.")
@@ -273,11 +198,11 @@ def load_node_from_dict(node_data):
     return node
 
 
-def extract_node_labels(nodes):
+def extract_node_labels_with_paths(nodes):
     labels = []
     for node in nodes:
-        labels.append(node.id)
-        labels.extend(extract_node_labels(node.children))
+        labels.append((os.path.basename(node.id), node.id))
+        labels.extend(extract_node_labels_with_paths(node.children))
     return labels
 
 
@@ -328,70 +253,6 @@ def is_label_exists(nodes, label):
     return False
 
 
-def pretty_print(message):
-    print('\n\n'.join('\n'.join(line.strip() for line in re.findall(
-        r'.{1,100}(?:\s+|$)', paragraph.strip('\n'))) for paragraph in re.split(r'\n\n+', message)))
-
-
-def extract_between_tags(tag: str, string: str, strip: bool = False) -> list[str]:
-    ext_list = re.findall(f"<{tag}>(.+?)</{tag}>", string, re.DOTALL)
-    if strip:
-        ext_list = [e.strip() for e in ext_list]
-    return ext_list
-
-
-def remove_empty_tags(text):
-    return re.sub(r'\n<(\w+)>\s*</\1>\n', '', text, flags=re.DOTALL)
-
-
-def strip_last_sentence(text):
-    sentences = text.split('. ')
-    if sentences[-1].startswith("Let me know"):
-        sentences = sentences[:-1]
-        result = '. '.join(sentences)
-        if result and not result.endswith('.'):
-            result += '.'
-        return result
-    else:
-        return text
-
-
-def extract_prompt(metaprompt_response):
-    between_tags = extract_between_tags("Instructions", metaprompt_response)[0]
-    return between_tags[:1000] + strip_last_sentence(remove_empty_tags(remove_empty_tags(between_tags[1000:]).strip()).strip())
-
-
-def extract_variables(prompt):
-    pattern = r'{([^}]+)}'
-    variables = re.findall(pattern, prompt)
-    return set(variables)
-
-
-def remove_inapt_floating_variables(prompt, CLIENT, MODEL_NAME, remove_floating_variables_prompt):
-    message = CLIENT.messages.create(
-        model=MODEL_NAME,
-        messages=[{'role': "user", "content": remove_floating_variables_prompt.replace(
-            "{$PROMPT}", prompt)}],
-        max_tokens=4096,
-        temperature=0
-    ).content[0].text
-    return extract_between_tags("rewritten_prompt", message
-
-                                )[0]
-
-
-def extract_node_labels_with_paths(nodes):
-    labels = []
-    for node in nodes:
-        labels.append((os.path.basename(node.id), node.id))
-        labels.extend(extract_node_labels_with_paths(node.children))
-    return labels
-
-
-def extract_node_labels(nodes):
-    return [label for label, _ in extract_node_labels_with_paths(nodes)]
-
-
 def find_node_by_path(nodes, path):
     for node in nodes:
         if node.id == path:
@@ -400,34 +261,6 @@ def find_node_by_path(nodes, path):
         if found_node:
             return found_node
     return None
-
-
-def find_free_floating_variables(prompt):
-    variable_usages = re.findall(r'\{\$[A-Z0-9_]+\}', prompt)
-
-    free_floating_variables = []
-    for variable in variable_usages:
-        preceding_text = prompt[:prompt.index(variable)]
-        open_tags = set()
-
-        i = 0
-        while i < len(preceding_text):
-            if preceding_text[i] == '<':
-                if i + 1 < len(preceding_text) and preceding_text[i + 1] == '/':
-                    closing_tag = preceding_text[i + 2:].split('>', 1)[0]
-                    open_tags.discard(closing_tag)
-                    i += len(closing_tag) + 3
-                else:
-                    opening_tag = preceding_text[i + 1:].split('>', 1)[0]
-                    open_tags.add(opening_tag)
-                    i += len(opening_tag) + 2
-            else:
-                i += 1
-
-        if not open_tags:
-            free_floating_variables.append(variable)
-
-    return free_floating_variables
 
 
 def make_metaprompt(request):
@@ -540,20 +373,11 @@ def main():
                         remove_node(st.session_state.nodes, node.id)
 
                     # 새롭게 디렉토리 트리를 추가
-                    nested_path = "C:/Users/ajsj2/OneDrive/문서/Obsidian Vault/부속품"
                     new_directory_node, _ = directory_to_tree(
-                        directory_path, nested_path, st_allowed_extensions)
+                        directory_path, st_allowed_extensions)
                     st.session_state.nodes.append(new_directory_node)
                     st.session_state.expanded_nodes.append(
                         new_directory_node.id)
-                    # tmp에서 .이 없는 것만 추출
-                    tmp_null = []
-                    for i in range(len(tmp)):
-                        for j in range(len(tmp[i])):
-                            if '.' not in tmp[i][j]:
-                                print(tmp[i][j])
-                                tmp_null.append(tmp[i][j])
-
                 else:
                     st.error("디렉토리 경로가 존재하지 않습니다.")
 
@@ -581,7 +405,7 @@ def main():
 
             st.subheader("다운로드 및 업로드")
             st.markdown(download_json_file(st.session_state.nodes,
-                        "nodes.json"), unsafe_allow_html=True)
+                                           "nodes.json"), unsafe_allow_html=True)
 
             uploaded_file = st.file_uploader("노드 구조 파일 업로드", type=["json"])
             if uploaded_file is not None:
@@ -594,8 +418,10 @@ def main():
             [node.to_dict() for node in st.session_state.nodes],
             check_model='all',
             show_expand_all=True,
-            expanded=extract_all_node_labels(st.session_state.nodes),
-            checked=st.session_state.expanded_nodes
+            # 처음 노드의 1단계만 열림
+            # expanded=[st.session_state.nodes[0].label],
+            # expanded=extract_all_node_labels(st.session_state.nodes),
+            # checked=st.session_state.expanded_nodes
         )
 
         prompts = load_prompts()
@@ -606,8 +432,7 @@ def main():
         request = st.text_area("요청 입력", height=100)
 
         global selected_code
-        selected_code = get_selected_code(
-            st.session_state.nodes, selected_nodes)
+        selected_code = get_selected_code(selected_nodes)
         prompt = f"{selected_code}\n\n"
 
         for prompt_name, prompt_content in prompts.items():
