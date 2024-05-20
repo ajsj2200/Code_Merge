@@ -51,6 +51,15 @@ def read_file(file_path):
         return None
 
 
+def write_file(file_path, content):
+    try:
+        with open(file_path, 'w', encoding='utf-8') as file:
+            file.write(content)
+    except Exception as e:
+        print(f"Error writing to file: {file_path}")
+        print(str(e))
+
+
 def directory_to_tree(path, allowed_extensions=None, progress=None, processed_files=0, total_files=1):
     if allowed_extensions is None:
         allowed_extensions = ['.cs', '.py', '.txt', '.md']
@@ -216,6 +225,16 @@ def find_node(nodes, id):
     return None
 
 
+def find_node_by_path(nodes, path):
+    for node in nodes:
+        if node.id == path:
+            return node
+        found_node = find_node_by_path(node.children, path)
+        if found_node:
+            return found_node
+    return None
+
+
 def remove_node(nodes, id):
     for i, node in enumerate(nodes):
         if node.id == id:
@@ -251,16 +270,6 @@ def is_label_exists(nodes, label):
     if label in extract_node_labels(nodes):
         return True
     return False
-
-
-def find_node_by_path(nodes, path):
-    for node in nodes:
-        if node.id == path:
-            return node
-        found_node = find_node_by_path(node.children, path)
-        if found_node:
-            return found_node
-    return None
 
 
 def make_metaprompt(request):
@@ -353,9 +362,19 @@ def main():
                     parent_node = find_node_by_path(
                         st.session_state.nodes, parent_path)
                     if parent_node:
-                        parent_node.add_child(Node(label, code))
+                        new_node = Node(label, code)
+                        parent_node.add_child(new_node)
+                        # .md 파일 생성
+                        file_path = os.path.join(parent_path, f"{label}.md")
+                        write_file(file_path, code)
+                        new_node.code = file_path
                     else:
-                        st.session_state.nodes.append(Node(label, code))
+                        new_node = Node(label, code)
+                        st.session_state.nodes.append(new_node)
+                        # .md 파일 생성
+                        file_path = f"{label}.md"
+                        write_file(file_path, code)
+                        new_node.code = file_path
                     st.session_state.expanded_nodes.append(label)
                 else:
                     st.warning("중복된 노드 라벨입니다. 다른 라벨을 사용해주세요.")
@@ -363,7 +382,7 @@ def main():
             st.subheader("디렉토리 트리 추가")
             directory_path = st.text_input("디렉토리 경로 입력")
             st_allowed_extensions = st.multiselect(
-                "포함할 파일 확장자 선택", [".cs", ".py", ".txt", "hwp", "csv", "pdf", ".md"], default=[".cs", ".py", ".txt"])
+                "포함할 파일 확장자 선택", [".cs", ".py", ".txt", ".md"], default=[".cs", ".py", ".txt"])
             if st.button("디렉토리 트리 추가"):
                 if os.path.exists(directory_path):
                     # 디렉토리 경로와 일치하는 노드를 찾아서 삭제
@@ -391,6 +410,9 @@ def main():
                 edit_code = st.text_area("내용 내용 수정", value=edit_node.code)
                 if st.button("노드 수정"):
                     edit_node.code = edit_code
+                    # .md 파일 내용 수정
+                    if os.path.exists(edit_node.code):
+                        write_file(edit_node.code, edit_code)
             else:
                 st.warning("수정할 노드를 선택해주세요.")
 
@@ -405,7 +427,7 @@ def main():
 
             st.subheader("다운로드 및 업로드")
             st.markdown(download_json_file(st.session_state.nodes,
-                                           "nodes.json"), unsafe_allow_html=True)
+                        "nodes.json"), unsafe_allow_html=True)
 
             uploaded_file = st.file_uploader("노드 구조 파일 업로드", type=["json"])
             if uploaded_file is not None:
@@ -418,12 +440,10 @@ def main():
             [node.to_dict() for node in st.session_state.nodes],
             check_model='all',
             show_expand_all=True,
-            # 처음 노드의 1단계만 열림
-            # expanded=[st.session_state.nodes[0].label],
-            # expanded=extract_all_node_labels(st.session_state.nodes),
+            expanded=extract_all_node_labels(st.session_state.nodes),
             # checked=st.session_state.expanded_nodes
         )
-
+        # st.code([node.to_dict() for node in st.session_state.nodes])
         prompts = load_prompts()
 
         selected_nodes = tree_result.get('checked', [])
