@@ -1,12 +1,12 @@
-import os
-import streamlit as st
-from streamlit_tree_select import tree_select
-import json
-import base64
-import pyperclip
-import re
-import anthropic
 import time
+import anthropic
+import re
+import pyperclip
+import base64
+import json
+from streamlit_tree_select import tree_select
+import streamlit as st
+import os
 
 
 class Node:
@@ -405,7 +405,7 @@ def main():
 
             st.subheader("다운로드 및 업로드")
             st.markdown(download_json_file(st.session_state.nodes,
-                                           "nodes.json"), unsafe_allow_html=True)
+                        "nodes.json"), unsafe_allow_html=True)
 
             uploaded_file = st.file_uploader("노드 구조 파일 업로드", type=["json"])
             if uploaded_file is not None:
@@ -418,10 +418,6 @@ def main():
             [node.to_dict() for node in st.session_state.nodes],
             check_model='all',
             show_expand_all=True,
-            # 처음 노드의 1단계만 열림
-            # expanded=[st.session_state.nodes[0].label],
-            # expanded=extract_all_node_labels(st.session_state.nodes),
-            # checked=st.session_state.expanded_nodes
         )
 
         prompts = load_prompts()
@@ -435,12 +431,32 @@ def main():
         selected_code = get_selected_code(selected_nodes)
         prompt = f"{selected_code}\n\n"
 
+        # 요청 프롬프트 앞에 선택하게 하는 부분 추가
+        st.subheader("요청 프롬프트 앞에 위치시킬 노드를 선택하세요")
+        selected_specific_node_label = st.selectbox(
+            "특정 노드 선택", [label for label, _ in node_labels_with_paths])
+        specific_node_path = next(
+            path for label, path in node_labels_with_paths if label == selected_specific_node_label)
+        specific_node = find_node_by_path(
+            st.session_state.nodes, specific_node_path)
+
+        specific_node_content = ""
+        if specific_node:
+            if os.path.exists(specific_node.code):
+                specific_node_content = read_file(specific_node.code)
+            else:
+                specific_node_content = specific_node.code
+
         for prompt_name, prompt_content in prompts.items():
             use_prompt = st.checkbox(f"{prompt_name} 사용")
             if use_prompt:
                 prompt += f"{prompt_content}\n\n"
 
-        prompt += f"[요청: {request}]"
+        prompt += f"[요청: {request}]\n\n"
+
+        # 특정 노드 내용을 마지막에 추가
+        prompt += f"########################\n 자료 이름 : {
+            specific_node.label} \n\n{specific_node_content}"
 
         if st.button('프롬프트 복사'):
             pyperclip.copy(prompt)
