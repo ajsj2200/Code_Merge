@@ -7,7 +7,11 @@ import json
 from streamlit_tree_select import tree_select
 import streamlit as st
 import os
-
+import pathlib
+import textwrap
+import google.generativeai as genai
+from google.api_core import retry
+import concurrent.futures
 
 class Node:
     def __init__(self, label, code="", children=None, id=None):
@@ -31,6 +35,83 @@ class Node:
             "children": [child.to_dict() for child in self.children]
         }
 
+
+@st.cache_resource
+def load_api_key():
+    try:
+        with open("api_key.txt", "r") as file:
+            api_key = file.read().strip()
+        return api_key
+    except FileNotFoundError:
+        st.error("API 키 파일이 존재하지 않습니다.")
+        return ""
+    except Exception as e:
+        st.error(f"API 키 파일을 읽는 중 오류가 발생했습니다: {str(e)}")
+        return ""
+
+@st.cache_resource
+def load_gemini_api_key(filepath):
+    return pathlib.Path(filepath).read_text().strip()
+
+def configure_genai(api_key):
+    genai.configure(api_key=api_key)
+
+def get_model(model_name):
+    generation_config = {
+        "temperature": 0.5,
+        "top_p": 0.95,
+        "top_k": 64,
+        "max_output_tokens": 8192,
+        "response_mime_type": "text/plain",
+        }
+    
+    return genai.GenerativeModel(model_name=model_name, generation_config=generation_config)
+
+def generate_markdown(model, context):
+    prompt = f"""
+    다음 지시사항을 엄격히 준수하여 주어진 텍스트를 Markdown 문서로 변환해 주세요:
+
+    원본 텍스트의 내용을 절대로 변경하거나 추가, 삭제하지 마세요.
+
+    단어, 문장, 단락 등 어떤 텍스트도 수정되어서는 안 됩니다.
+    원본 텍스트의 의미와 메시지는 그대로 유지되어야 합니다.
+
+
+    Markdown 문법을 사용하여 텍스트를 구조화하고 가독성을 높이세요.
+
+    제목, 부제목, 목록, 인용구, 코드 블록 등 적절한 요소를 활용하세요.
+    원본 텍스트의 구조와 흐름을 최대한 반영하도록 노력하세요.
+
+
+    원본 텍스트 이외의 어떤 내용도 추가하지 마세요.
+
+    설명, 해석, 의견 등 어떤 추가 정보도 포함해서는 안 됩니다.
+
+    변환할 텍스트:
+    {context}
+    """
+    response = model.generate_content(prompt, request_options={'retry': retry.Retry()})
+    return response
+
+def process_response(response):
+    try:
+        markdown_text = response.candidates[0].content.parts[0].text
+        return markdown_text
+    except KeyError:
+        return ""
+
+def display_markdown(markdown_text):
+    display(Markdown(markdown_text))
+
+def chunk_text(text, chunk_size=500, overlap_size=100):
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = start + chunk_size
+        chunk = text[start:end]
+        chunks.append(chunk)
+        start = end - overlap_size
+    return chunks
 
 def count_files_in_directory(path, allowed_extensions):
     total_files = 0
@@ -440,11 +521,8 @@ def main():
             [node.to_dict() for node in st.session_state.nodes],
             check_model='all',
             show_expand_all=True,
-<<<<<<< HEAD
-=======
             expanded=extract_all_node_labels(st.session_state.nodes),
             # checked=st.session_state.expanded_nodes
->>>>>>> 30e3cbf1bae2b8629e19204c696ac5de2ad79a0e
         )
         # st.code([node.to_dict() for node in st.session_state.nodes])
         prompts = load_prompts()
@@ -490,7 +568,7 @@ def main():
         if st.button('프롬프트 확인'):
             st.code(prompt, language="python")
 
-        tab1, tab2, tab3 = st.tabs(["선택된 자료", "메타프롬프트 생성", "프롬프트 향상"])
+        tab1, tab2, tab3, tab4 = st.tabs(["선택된 자료", "메타프롬프트 생성", "프롬프트 향상", "텍스트 변환"])
         with tab1:
             display_selected_codes(selected_nodes)
         with tab2:
@@ -516,6 +594,43 @@ def main():
                 ).content[0].text
                 st.write(message)
                 pyperclip.copy(message)
+                
+        with tab4:
+            st.write("텍스트 변환")
+            text_to_convert = st.text_area("변환할 텍스트 입력", height=200)
+            chunk_size = st.slider("청크 크기", min_value=100, max_value=3000, value=1000)
+            
+            if st.button("텍스트 변환"):
+                api_key_filepath = 'gemini_api_key.txt'
+                model_name = 'models/gemini-1.5-flash-latest'
+                api_key = load_gemini_api_key(api_key_filepath)
+                configure_genai(api_key)
+                model = get_model(model_name)
+
+                
+                chunks = chunk_text(text_to_convert, chunk_size=3000, overlap_size=100)
+                max_concurrent_requests = 8
+
+            with st.spinner("텍스트 변환 중..."):
+                with concurrent.futures.ThreadPoolExecutor(max_workers=max_concurrent_requests) as executor:
+                    futures = []
+                    for i, chunk in enumerate(chunks):
+                        futures.append((i, executor.submit(generate_markdown, model, chunk)))
+                        if (i + 1) % max_concurrent_requests == 0:
+                            for index, future in futures:
+                                response = future.result()
+                                markdown_text = process_response(response)
+                                chunks[index] = markdown_text
+                            futures = []
+
+                    # 남은 청크 처리
+                    for index, future in futures:
+                        response = future.result()
+                        markdown_text = process_response(response)
+                        chunks[index] = markdown_text
+
+                markdown_result = "\n\n".join(chunks)
+                st.markdown(markdown_result)
 
     except Exception as e:
         st.error(f"예기치 않은 오류가 발생했습니다: {str(e)}")
