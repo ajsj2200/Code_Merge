@@ -596,10 +596,17 @@ def main():
                 pyperclip.copy(message)
                 
         with tab4:
-            st.write("텍스트 변환")
+            st.write("텍스트 정리")
             text_to_convert = st.text_area("변환할 텍스트 입력", height=200)
-            chunk_size = st.slider("청크 크기", min_value=100, max_value=3000, value=1000)
-            
+            chunk_size = st.slider("청크 크기", min_value=100, max_value=3000, value=1000, step = 100)
+            over_lap_size = st.slider("오버랩 크기", min_value=0, max_value=500, value=100, step = 10)
+            # 텍스트 길이 표시
+            if text_to_convert:
+                st.write(f"텍스트 길이: {len(text_to_convert)}")
+                # 청크 개수
+                chunks = chunk_text(text_to_convert, chunk_size=chunk_size, overlap_size=over_lap_size)
+                st.write(f"청크 개수: {len(chunks)}")
+                
             if st.button("텍스트 변환"):
                 api_key_filepath = 'gemini_api_key.txt'
                 model_name = 'models/gemini-1.5-flash-latest'
@@ -607,30 +614,41 @@ def main():
                 configure_genai(api_key)
                 model = get_model(model_name)
 
-                
-                chunks = chunk_text(text_to_convert, chunk_size=3000, overlap_size=100)
+                chunks = chunk_text(text_to_convert, chunk_size=chunk_size, overlap_size=over_lap_size)
                 max_concurrent_requests = 8
+                
+                progress_bar = st.progress(0)
+                total_chunks = len(chunks)
+                processed_chunks = 0
 
-            with st.spinner("텍스트 변환 중..."):
-                with concurrent.futures.ThreadPoolExecutor(max_workers=max_concurrent_requests) as executor:
-                    futures = []
-                    for i, chunk in enumerate(chunks):
-                        futures.append((i, executor.submit(generate_markdown, model, chunk)))
-                        if (i + 1) % max_concurrent_requests == 0:
-                            for index, future in futures:
-                                response = future.result()
-                                markdown_text = process_response(response)
-                                chunks[index] = markdown_text
-                            futures = []
+                with st.spinner(f"텍스트 정리 중..."):
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=max_concurrent_requests) as executor:
+                        futures = []
+                        for i, chunk in enumerate(chunks):
+                            futures.append((i, executor.submit(generate_markdown, model, chunk)))
+                            if (i + 1) % max_concurrent_requests == 0:
+                                for index, future in futures:
+                                    response = future.result()
+                                    markdown_text = process_response(response)
+                                    chunks[index] = markdown_text
+                                    processed_chunks += 1
+                                    progress_bar.progress(processed_chunks / total_chunks)
+                                futures = []
 
-                    # 남은 청크 처리
-                    for index, future in futures:
-                        response = future.result()
-                        markdown_text = process_response(response)
-                        chunks[index] = markdown_text
+                        # 남은 청크 처리
+                        for index, future in futures:
+                            response = future.result()
+                            markdown_text = process_response(response)
+                            chunks[index] = markdown_text
+                            processed_chunks += 1
+                            progress_bar.progress(processed_chunks / total_chunks)
 
-                markdown_result = "\n\n".join(chunks)
-                st.markdown(markdown_result)
+                    markdown_result = "\n\n".join(chunks)
+                    inner_tab1, inner_tab2 = st.tabs(["코드", "마크다운"])
+                    with inner_tab1:
+                        st.code(markdown_result)
+                    with inner_tab2:
+                        st.markdown(markdown_result)
 
     except Exception as e:
         st.error(f"예기치 않은 오류가 발생했습니다: {str(e)}")
