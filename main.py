@@ -13,6 +13,7 @@ import google.generativeai as genai
 from google.api_core import retry
 import concurrent.futures
 
+
 class Node:
     def __init__(self, label, code="", children=None, id=None):
         self.label = label
@@ -49,12 +50,15 @@ def load_api_key():
         st.error(f"API 키 파일을 읽는 중 오류가 발생했습니다: {str(e)}")
         return ""
 
+
 @st.cache_resource
 def load_gemini_api_key(filepath):
     return pathlib.Path(filepath).read_text().strip()
 
+
 def configure_genai(api_key):
     genai.configure(api_key=api_key)
+
 
 def get_model(model_name):
     generation_config = {
@@ -63,9 +67,10 @@ def get_model(model_name):
         "top_k": 64,
         "max_output_tokens": 8192,
         "response_mime_type": "text/plain",
-        }
-    
+    }
+
     return genai.GenerativeModel(model_name=model_name, generation_config=generation_config)
+
 
 def generate_markdown(model, context):
     prompt = f"""
@@ -90,8 +95,10 @@ def generate_markdown(model, context):
     변환할 텍스트:
     {context}
     """
-    response = model.generate_content(prompt, request_options={'retry': retry.Retry()})
+    response = model.generate_content(
+        prompt, request_options={'retry': retry.Retry()})
     return response
+
 
 def process_response(response):
     try:
@@ -100,8 +107,10 @@ def process_response(response):
     except KeyError:
         return ""
 
+
 def display_markdown(markdown_text):
     display(Markdown(markdown_text))
+
 
 def chunk_text(text, chunk_size=500, overlap_size=100):
     chunks = []
@@ -112,6 +121,7 @@ def chunk_text(text, chunk_size=500, overlap_size=100):
         chunks.append(chunk)
         start = end - overlap_size
     return chunks
+
 
 def count_files_in_directory(path, allowed_extensions):
     total_files = 0
@@ -223,11 +233,11 @@ def get_selected_code(selected_nodes):
             if os.path.exists(node.code):  # 파일 경로가 유효한지 확인
                 file_content = read_file(node.code)
                 if file_content:
-                    selected_codes.append(f"########################\n 자료 이름 : {
-                                          node.label} \n\n{file_content}")
+                    selected_codes.append(
+                        f"########################\n 자료 이름 : {node.label} \n\n{file_content}")
             else:
-                selected_codes.append(f"########################\n 자료 이름 : {
-                                      node.label} \n\n{node.code}")
+                selected_codes.append(
+                    f"########################\n 자료 이름 : {node.label} \n\n{node.code}")
     return "\n\n".join(selected_codes)
 
 
@@ -255,8 +265,7 @@ def download_json_file(nodes, file_name):
         nodes_data = [node.to_dict() for node in nodes]
         json_data = json.dumps(nodes_data, indent=2)
         b64 = base64.b64encode(json_data.encode("utf-8")).decode("utf-8")
-        href = f'<a href="data:file/json;base64,{
-            b64}" download="{file_name}">노드 구조 다운로드</a>'
+        href = f'<a href="data:file/json;base64,{b64}" download="{file_name}">노드 구조 다운로드</a>'
         return href
     except Exception as e:
         st.error(f"JSON 파일 다운로드 중 오류가 발생했습니다: {str(e)}")
@@ -560,15 +569,15 @@ def main():
         prompt += f"[요청: {request}]\n\n"
 
         # 특정 노드 내용을 마지막에 추가
-        prompt += f"########################\n 자료 이름 : {
-            specific_node.label} \n\n{specific_node_content}"
+        prompt += f"########################\n 자료 이름 : {specific_node.label} \n\n{specific_node_content}"
 
         if st.button('프롬프트 복사'):
             pyperclip.copy(prompt)
         if st.button('프롬프트 확인'):
             st.code(prompt, language="python")
 
-        tab1, tab2, tab3, tab4 = st.tabs(["선택된 자료", "메타프롬프트 생성", "프롬프트 향상", "텍스트 변환"])
+        tab1, tab2, tab3, tab4 = st.tabs(
+            ["선택된 자료", "메타프롬프트 생성", "프롬프트 향상", "텍스트 변환"])
         with tab1:
             display_selected_codes(selected_nodes)
         with tab2:
@@ -594,19 +603,22 @@ def main():
                 ).content[0].text
                 st.write(message)
                 pyperclip.copy(message)
-                
+
         with tab4:
             st.write("텍스트 정리")
             text_to_convert = st.text_area("변환할 텍스트 입력", height=200)
-            chunk_size = st.slider("청크 크기", min_value=100, max_value=3000, value=1000, step = 100)
-            over_lap_size = st.slider("오버랩 크기", min_value=0, max_value=500, value=100, step = 10)
+            chunk_size = st.slider(
+                "청크 크기", min_value=100, max_value=3000, value=1000, step=100)
+            over_lap_size = st.slider(
+                "오버랩 크기", min_value=0, max_value=500, value=100, step=10)
             # 텍스트 길이 표시
             if text_to_convert:
                 st.write(f"텍스트 길이: {len(text_to_convert)}")
                 # 청크 개수
-                chunks = chunk_text(text_to_convert, chunk_size=chunk_size, overlap_size=over_lap_size)
+                chunks = chunk_text(
+                    text_to_convert, chunk_size=chunk_size, overlap_size=over_lap_size)
                 st.write(f"청크 개수: {len(chunks)}")
-                
+
             if st.button("텍스트 변환"):
                 api_key_filepath = 'gemini_api_key.txt'
                 model_name = 'models/gemini-1.5-flash-latest'
@@ -614,9 +626,10 @@ def main():
                 configure_genai(api_key)
                 model = get_model(model_name)
 
-                chunks = chunk_text(text_to_convert, chunk_size=chunk_size, overlap_size=over_lap_size)
+                chunks = chunk_text(
+                    text_to_convert, chunk_size=chunk_size, overlap_size=over_lap_size)
                 max_concurrent_requests = 8
-                
+
                 progress_bar = st.progress(0)
                 total_chunks = len(chunks)
                 processed_chunks = 0
@@ -625,14 +638,16 @@ def main():
                     with concurrent.futures.ThreadPoolExecutor(max_workers=max_concurrent_requests) as executor:
                         futures = []
                         for i, chunk in enumerate(chunks):
-                            futures.append((i, executor.submit(generate_markdown, model, chunk)))
+                            futures.append(
+                                (i, executor.submit(generate_markdown, model, chunk)))
                             if (i + 1) % max_concurrent_requests == 0:
                                 for index, future in futures:
                                     response = future.result()
                                     markdown_text = process_response(response)
                                     chunks[index] = markdown_text
                                     processed_chunks += 1
-                                    progress_bar.progress(processed_chunks / total_chunks)
+                                    progress_bar.progress(
+                                        processed_chunks / total_chunks)
                                 futures = []
 
                         # 남은 청크 처리
@@ -641,7 +656,8 @@ def main():
                             markdown_text = process_response(response)
                             chunks[index] = markdown_text
                             processed_chunks += 1
-                            progress_bar.progress(processed_chunks / total_chunks)
+                            progress_bar.progress(
+                                processed_chunks / total_chunks)
 
                     markdown_result = "\n\n".join(chunks)
                     inner_tab1, inner_tab2 = st.tabs(["코드", "마크다운"])
