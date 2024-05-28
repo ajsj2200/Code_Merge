@@ -33,8 +33,21 @@ class Node:
             "label": self.label,
             "value": self.id,
             "code": self.code,
-            "children": [child.to_dict() for child in self.children]
+            "children": [child.to_dict() for child in self.children],
+            "expand_disabled": self.is_leaf()  # 추가 부분
         }
+
+    def is_leaf(self):
+        return len(self.children) == 0
+
+
+def count_files_in_folder(path, allowed_extensions):
+    count = 0
+    for root, dirs, files in os.walk(path):
+        for file in files:
+            if os.path.splitext(file)[1] in allowed_extensions:
+                count += 1
+    return count
 
 
 @st.cache_resource
@@ -171,6 +184,9 @@ def directory_to_tree(path, allowed_extensions=None, progress=None, processed_fi
         allowed_extensions = ['.cs', '.py', '.txt', '.md']
 
     name = os.path.basename(path)
+    if os.path.isdir(path):
+        file_count = count_files_in_folder(path, allowed_extensions)
+        name = f"[폴더] {name} ({file_count}개 파일)"  # 폴더 이름 뒤에 파일 개수 추가
     node = Node(name, id=path)
 
     if progress is None:
@@ -178,7 +194,14 @@ def directory_to_tree(path, allowed_extensions=None, progress=None, processed_fi
         progress = st.progress(0)
 
     if os.path.isdir(path):
-        for child in os.listdir(path):
+        children = os.listdir(path)
+        folders = sorted(
+            [child for child in children if os.path.isdir(os.path.join(path, child))])
+        files = sorted(
+            [child for child in children if not os.path.isdir(os.path.join(path, child))])
+        sorted_children = folders + files  # 폴더가 파일보다 먼저 오도록 정렬
+
+        for child in sorted_children:
             child_path = os.path.join(path, child)
             try:
                 child_node, processed_files = directory_to_tree(
@@ -378,6 +401,26 @@ def is_label_exists(nodes, label):
     return False
 
 
+def chunk_text(text, chunk_size=500, overlap_size=100):
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = start + chunk_size
+        chunk = text[start:end]
+        chunks.append(chunk)
+        start = end - overlap_size
+    return chunks
+
+
+# 텍스트 길이에 따라 청크 크기를 자동으로 설정하는 함수 추가
+def calculate_chunk_size(text_length, desired_chunks=6, overlap_size=100):
+    if text_length <= 0 or desired_chunks <= 0:
+        return 500  # 기본 청크 크기
+    chunk_size = (text_length + (desired_chunks - 1)
+                  * overlap_size) // desired_chunks
+    return chunk_size
+
+
 def make_metaprompt(request):
     ANTHROPIC_API_KEY = load_api_key()
     MODEL_NAME = "claude-3-opus-20240229"
@@ -460,38 +503,38 @@ def main():
             if selected_favorite_directory:
                 st.write(f"선택된 경로: {selected_favorite_directory}")
 
-            st.subheader("노드 관리")
+            # st.subheader("노드 관리")
 
-            st.subheader("노드 추가")
+            # st.subheader("노드 추가")
             node_labels_with_paths = extract_node_labels_with_paths(
                 st.session_state.nodes)
-            parent_label = st.selectbox(
-                "부모 노드 선택", [label for label, _ in node_labels_with_paths])
-            label = st.text_input("노드 레이블")
-            code = st.text_area("내용 내용")
-            if st.button("노드 추가"):
-                if not is_label_exists(st.session_state.nodes, label):
-                    parent_path = next(
-                        path for label, path in node_labels_with_paths if label == parent_label)
-                    parent_node = find_node_by_path(
-                        st.session_state.nodes, parent_path)
-                    if parent_node:
-                        new_node = Node(label, code)
-                        parent_node.add_child(new_node)
-                        # .md 파일 생성
-                        file_path = os.path.join(parent_path, f"{label}.md")
-                        write_file(file_path, code)
-                        new_node.code = file_path
-                    else:
-                        new_node = Node(label, code)
-                        st.session_state.nodes.append(new_node)
-                        # .md 파일 생성
-                        file_path = f"{label}.md"
-                        write_file(file_path, code)
-                        new_node.code = file_path
-                    st.session_state.expanded_nodes.append(label)
-                else:
-                    st.warning("중복된 노드 라벨입니다. 다른 라벨을 사용해주세요.")
+            # parent_label = st.selectbox(
+            #     "부모 노드 선택", [label for label, _ in node_labels_with_paths])
+            # label = st.text_input("노드 레이블")
+            # code = st.text_area("내용 내용")
+            # if st.button("노드 추가"):
+            #     if not is_label_exists(st.session_state.nodes, label):
+            #         parent_path = next(
+            #             path for label, path in node_labels_with_paths if label == parent_label)
+            #         parent_node = find_node_by_path(
+            #             st.session_state.nodes, parent_path)
+            #         if parent_node:
+            #             new_node = Node(label, code)
+            #             parent_node.add_child(new_node)
+            #             # .md 파일 생성
+            #             file_path = os.path.join(parent_path, f"{label}.md")
+            #             write_file(file_path, code)
+            #             new_node.code = file_path
+            #         else:
+            #             new_node = Node(label, code)
+            #             st.session_state.nodes.append(new_node)
+            #             # .md 파일 생성
+            #             file_path = f"{label}.md"
+            #             write_file(file_path, code)
+            #             new_node.code = file_path
+            #         st.session_state.expanded_nodes.append(label)
+            #     else:
+            #         st.warning("중복된 노드 라벨입니다. 다른 라벨을 사용해주세요.")
 
             st.subheader("디렉토리 트리 추가")
             directory_path = st.text_input(
@@ -538,49 +581,48 @@ def main():
                     else:
                         st.error(f"디렉토리 경로가 존재하지 않습니다: {directory}")
 
-            st.subheader("노드 수정")
-            edit_label = st.selectbox(
-                "수정할 노드 선택", [label for label, _ in node_labels_with_paths])
-            edit_path = next(
-                path for label, path in node_labels_with_paths if label == edit_label)
-            edit_node = find_node_by_path(st.session_state.nodes, edit_path)
-            if edit_node:
-                edit_code = st.text_area("내용 내용 수정", value=edit_node.code)
-                if st.button("노드 수정"):
-                    edit_node.code = edit_code
-                    # .md 파일 내용 수정
-                    if os.path.exists(edit_node.code):
-                        write_file(edit_node.code, edit_code)
-            else:
-                st.warning("수정할 노드를 선택해주세요.")
+            # st.subheader("노드 수정")
+            # edit_label = st.selectbox(
+            #     "수정할 노드 선택", [label for label, _ in node_labels_with_paths])
+            # edit_path = next(
+            #     path for label, path in node_labels_with_paths if label == edit_label)
+            # edit_node = find_node_by_path(st.session_state.nodes, edit_path)
+            # if edit_node:
+            #     edit_code = st.text_area("내용 내용 수정", value=edit_node.code)
+            #     if st.button("노드 수정"):
+            #         edit_node.code = edit_code
+            #         # .md 파일 내용 수정
+            #         if os.path.exists(edit_node.code):
+            #             write_file(edit_node.code, edit_code)
+            # else:
+            #     st.warning("수정할 노드를 선택해주세요.")
 
-            st.subheader("노드 삭제")
-            delete_label = st.selectbox(
-                "삭제할 노드 선택", [label for label, _ in node_labels_with_paths])
-            delete_path = next(
-                path for label, path in node_labels_with_paths if label == delete_label)
-            if st.button("노드 삭제"):
-                if remove_node(st.session_state.nodes, delete_path):
-                    st.session_state.expanded_nodes.remove(delete_path)
+            # st.subheader("노드 삭제")
+            # delete_label = st.selectbox(
+            #     "삭제할 노드 선택", [label for label, _ in node_labels_with_paths])
+            # delete_path = next(
+            #     path for label, path in node_labels_with_paths if label == delete_label)
+            # if st.button("노드 삭제"):
+            #     if remove_node(st.session_state.nodes, delete_path):
+            #         st.session_state.expanded_nodes.remove(delete_path)
 
-            st.subheader("다운로드 및 업로드")
-            st.markdown(download_json_file(st.session_state.nodes,
-                        "nodes.json"), unsafe_allow_html=True)
+            # st.subheader("다운로드 및 업로드")
+            # st.markdown(download_json_file(st.session_state.nodes,
+            #             "nodes.json"), unsafe_allow_html=True)
 
-            uploaded_file = st.file_uploader("노드 구조 파일 업로드", type=["json"])
-            if uploaded_file is not None:
-                json_data = uploaded_file.read().decode("utf-8")
-                st.session_state.nodes = load_nodes_from_json(json_data)
-                st.session_state.expanded_nodes = [
-                    node.id for node in st.session_state.nodes]
-
+            # uploaded_file = st.file_uploader("노드 구조 파일 업로드", type=["json"])
+            # if uploaded_file is not None:
+            #     json_data = uploaded_file.read().decode("utf-8")
+            #     st.session_state.nodes = load_nodes_from_json(json_data)
+            #     st.session_state.expanded_nodes = [
+            #         node.id for node in st.session_state.nodes]
         tree_result = tree_select(
             [node.to_dict() for node in st.session_state.nodes],
             check_model='all',
-            show_expand_all=True,
-            # expanded=extract_all_node_labels(st.session_state.nodes),
-            # checked=st.session_state.expanded_nodes
+            show_expand_all=False,
+            expand_disabled=False,  # 추가 부분
         )
+
         # st.code([node.to_dict() for node in st.session_state.nodes])
         prompts = load_prompts()
 
@@ -656,10 +698,22 @@ def main():
         with tab4:
             st.write("텍스트 정리")
             text_to_convert = st.text_area("변환할 텍스트 입력", height=200)
+
+            # 텍스트 길이에 따른 청크 크기 자동 계산
+            if text_to_convert:
+                default_chunk_size = calculate_chunk_size(len(text_to_convert))
+            else:
+                default_chunk_size = 1000
+
+            # 슬라이더를 사용하여 청크 크기와 오버랩 크기를 설정할 수 있도록 함
+            max_chunk_size = 8000
+            if default_chunk_size > max_chunk_size:
+                default_chunk_size = max_chunk_size
             chunk_size = st.slider(
-                "청크 크기", min_value=100, max_value=3000, value=1000, step=100)
+                "청크 크기", min_value=100, max_value=max_chunk_size, value=default_chunk_size, step=1000)
             over_lap_size = st.slider(
                 "오버랩 크기", min_value=0, max_value=500, value=100, step=10)
+
             # 텍스트 길이 표시
             if text_to_convert:
                 st.write(f"텍스트 길이: {len(text_to_convert)}")
@@ -677,7 +731,7 @@ def main():
 
                 chunks = chunk_text(
                     text_to_convert, chunk_size=chunk_size, overlap_size=over_lap_size)
-                max_concurrent_requests = 8
+                max_concurrent_requests = 15
 
                 progress_bar = st.progress(0)
                 total_chunks = len(chunks)
