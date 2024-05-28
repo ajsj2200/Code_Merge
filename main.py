@@ -56,6 +56,21 @@ def load_gemini_api_key(filepath):
     return pathlib.Path(filepath).read_text().strip()
 
 
+@st.cache_resource
+def load_favorite_directories(filepath="favorite_directories.txt"):
+    try:
+        with open(filepath, "r", encoding="utf-8") as file:
+            directories = [line.strip()
+                           for line in file.readlines() if line.strip()]
+        return directories
+    except FileNotFoundError:
+        st.error("즐겨찾기 경로 파일이 존재하지 않습니다.")
+        return []
+    except Exception as e:
+        st.error(f"즐겨찾기 경로 파일을 읽는 중 오류가 발생했습니다: {str(e)}")
+        return []
+
+
 def configure_genai(api_key):
     genai.configure(api_key=api_key)
 
@@ -436,7 +451,15 @@ def main():
             st.session_state.expanded_nodes = [
                 node.id for node in st.session_state.nodes]
 
+        favorite_directories = load_favorite_directories()
+
         with st.sidebar:
+            st.subheader("즐겨찾기 경로")
+            selected_favorite_directory = st.selectbox(
+                "즐겨찾기 경로 선택", favorite_directories)
+            if selected_favorite_directory:
+                st.write(f"선택된 경로: {selected_favorite_directory}")
+
             st.subheader("노드 관리")
 
             st.subheader("노드 추가")
@@ -471,9 +494,10 @@ def main():
                     st.warning("중복된 노드 라벨입니다. 다른 라벨을 사용해주세요.")
 
             st.subheader("디렉토리 트리 추가")
-            directory_path = st.text_input("디렉토리 경로 입력")
+            directory_path = st.text_input(
+                "디렉토리 경로 입력", value=selected_favorite_directory)
             st_allowed_extensions = st.multiselect(
-                "포함할 파일 확장자 선택", [".cs", ".py", ".txt", ".md"], default=[".cs", ".py", ".txt"])
+                "포함할 파일 확장자 선택", [".cs", ".py", ".txt", ".md"], default=[".cs", ".py", ".txt", ".md"])
             if st.button("디렉토리 트리 추가"):
                 if os.path.exists(directory_path):
                     # 디렉토리 경로와 일치하는 노드를 찾아서 삭제
@@ -490,6 +514,29 @@ def main():
                         new_directory_node.id)
                 else:
                     st.error("디렉토리 경로가 존재하지 않습니다.")
+
+            st.subheader("즐겨찾기 경로를 노드로 추가")
+            if st.button("즐겨찾기 경로 노드 추가"):
+                directory = selected_favorite_directory
+                if os.path.exists(directory):
+                    new_directory_node, _ = directory_to_tree(
+                        directory, st_allowed_extensions)
+                    st.session_state.nodes.append(new_directory_node)
+                    st.session_state.expanded_nodes.append(
+                        new_directory_node.id)
+                else:
+                    st.error(f"디렉토리 경로가 존재하지 않습니다: {directory}")
+
+            if st.button("즐겨찾기 모든 경로 노드 추가"):
+                for directory in favorite_directories:
+                    if os.path.exists(directory):
+                        new_directory_node, _ = directory_to_tree(
+                            directory, st_allowed_extensions)
+                        st.session_state.nodes.append(new_directory_node)
+                        st.session_state.expanded_nodes.append(
+                            new_directory_node.id)
+                    else:
+                        st.error(f"디렉토리 경로가 존재하지 않습니다: {directory}")
 
             st.subheader("노드 수정")
             edit_label = st.selectbox(
