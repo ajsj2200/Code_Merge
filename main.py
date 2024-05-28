@@ -265,7 +265,8 @@ def download_json_file(nodes, file_name):
         nodes_data = [node.to_dict() for node in nodes]
         json_data = json.dumps(nodes_data, indent=2)
         b64 = base64.b64encode(json_data.encode("utf-8")).decode("utf-8")
-        href = f'<a href="data:file/json;base64,{b64}" download="{file_name}">노드 구조 다운로드</a>'
+        href = f'<a href="data:file/json;base64,{
+            b64}" download="{file_name}">노드 구조 다운로드</a>'
         return href
     except Exception as e:
         st.error(f"JSON 파일 다운로드 중 오류가 발생했습니다: {str(e)}")
@@ -530,7 +531,7 @@ def main():
             [node.to_dict() for node in st.session_state.nodes],
             check_model='all',
             show_expand_all=True,
-            expanded=extract_all_node_labels(st.session_state.nodes),
+            # expanded=extract_all_node_labels(st.session_state.nodes),
             # checked=st.session_state.expanded_nodes
         )
         # st.code([node.to_dict() for node in st.session_state.nodes])
@@ -569,7 +570,8 @@ def main():
         prompt += f"[요청: {request}]\n\n"
 
         # 특정 노드 내용을 마지막에 추가
-        prompt += f"########################\n 자료 이름 : {specific_node.label} \n\n{specific_node_content}"
+        prompt += f"########################\n 자료 이름 : {
+            specific_node.label} \n\n{specific_node_content}"
 
         if st.button('프롬프트 복사'):
             pyperclip.copy(prompt)
@@ -619,7 +621,7 @@ def main():
                     text_to_convert, chunk_size=chunk_size, overlap_size=over_lap_size)
                 st.write(f"청크 개수: {len(chunks)}")
 
-            if st.button("텍스트 변환"):
+            if st.button("텍스트 정리"):
                 api_key_filepath = 'gemini_api_key.txt'
                 model_name = 'models/gemini-1.5-flash-latest'
                 api_key = load_gemini_api_key(api_key_filepath)
