@@ -1,3 +1,4 @@
+import threading
 import time
 import anthropic
 import re
@@ -12,6 +13,8 @@ import textwrap
 import google.generativeai as genai
 from google.api_core import retry
 import concurrent.futures
+import openai
+from openai import AsyncOpenAI
 
 
 class Node:
@@ -263,6 +266,20 @@ def load_api_key():
         return ""
 
 
+@st.cache_resource
+def load_openai_api_key():
+    try:
+        with open("openai_api_key.txt", "r") as file:
+            api_key = file.read().strip()
+        return api_key
+    except FileNotFoundError:
+        st.error("API 키 파일이 존재하지 않습니다.")
+        return ""
+    except Exception as e:
+        st.error(f"API 키 파일을 읽는 중 오류가 발생했습니다: {str(e)}")
+        return ""
+
+
 def get_selected_code(selected_nodes):
     selected_codes = []
     for node_label in selected_nodes:
@@ -482,6 +499,18 @@ def make_metaprompt(request):
         st.write("위의 프롬프트를 사용하여 ChatGPT나 Claude와 대화를 진행하세요.")
 
 
+def process_column(client, model, messages):
+    with st.chat_message("assistant"):
+        stream = client.chat.completions.create(
+            model=model,
+            messages=[{"role": m["role"], "content": m["content"]}
+                      for m in messages],
+            stream=True,
+        )
+        response = st.write_stream(stream)
+        return response
+
+
 def main():
     try:
         st.set_page_config(page_title="트리 기반 자료 관리 시스템", layout="wide")
@@ -667,8 +696,8 @@ def main():
         if st.button('프롬프트 확인'):
             st.code(prompt, language="python")
 
-        tab1, tab2, tab3, tab4 = st.tabs(
-            ["선택된 자료", "메타프롬프트 생성", "프롬프트 향상", "텍스트 변환"])
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(
+            ["선택된 자료", "메타프롬프트 생성", "프롬프트 향상", "텍스트 변환", "다중 채팅"])
         with tab1:
             display_selected_codes(selected_nodes)
         with tab2:
@@ -768,6 +797,76 @@ def main():
                         st.code(markdown_result)
                     with inner_tab2:
                         st.markdown(markdown_result)
+
+                    b64 = base64.b64encode(markdown_result.encode()).decode()
+                    href = f'<a href="data:file/markdown;base64,{
+                        b64}" download="markdown_result.md">마크다운 결과 다운로드</a>'
+                    st.markdown(href, unsafe_allow_html=True)
+
+        with tab5:
+            # 프롬프트를 복수 개의 API에 전달하여 결과를 비교하는 기능 추가
+            # text 로드
+            openapi_key = load_openai_api_key()
+            client = openai.Client(api_key=openapi_key)
+            st.session_state['openai_model'] = "gpt-4o"
+
+            st.session_state.messages = []
+
+            # for message in st.session_state.messages:
+            #     with st.chat_message(message["role"]):
+            #         st.markdown(message["content"])
+
+            st.session_state.messages.append(
+                {"role": "user", "content": prompt})
+            # with st.chat_message("user"):
+            #     st.markdown(prompt)
+
+            def process_column():
+                with st.chat_message("assistant"):
+                    stream = client.chat.completions.create(
+                        model=st.session_state["openai_model"],
+                        messages=[
+                            {"role": m["role"], "content": m["content"]}
+                            for m in st.session_state.messages
+                        ],
+                        stream=True,
+                    )
+                    response = st.write_stream(stream)
+            number_of_tabs = st.slider("탭 수", 1, 4, 2)
+
+            chat_tabs = st.tabs([f"탭 {i+1}" for i in range(number_of_tabs)])
+            if st.button("전송"):
+                for i in range(number_of_tabs):
+                    with chat_tabs[i]:
+                        process_column()
+            # if st.button("전송"):
+            #     if number_of_columns == 1:
+            #         process_column()
+            #     elif number_of_columns == 2:
+            #         col1, col2 = st.columns(2)
+            #         with col1:
+            #             process_column()
+            #         with col2:
+            #             process_column()
+            #     elif number_of_columns == 3:
+            #         col1, col2, col3 = st.columns(3)
+            #         with col1:
+            #             process_column()
+            #         with col2:
+            #             process_column()
+            #         with col3:
+            #             process_column()
+            #     elif number_of_columns == 4:
+            #         col1, col2 = st.columns(2)
+            #         col3, col4 = st.columns(2)
+            #         with col1:
+            #             process_column()
+            #         with col2:
+            #             process_column()
+            #         with col3:
+            #             process_column()
+            #         with col4:
+            #             process_column()
 
     except Exception as e:
         st.error(f"예기치 않은 오류가 발생했습니다: {str(e)}")
