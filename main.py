@@ -812,14 +812,8 @@ def main():
 
             st.session_state.messages = []
 
-            # for message in st.session_state.messages:
-            #     with st.chat_message(message["role"]):
-            #         st.markdown(message["content"])
-
             st.session_state.messages.append(
                 {"role": "user", "content": prompt})
-            # with st.chat_message("user"):
-            #     st.markdown(prompt)
 
             def process_column():
                 with st.chat_message("assistant"):
@@ -839,34 +833,6 @@ def main():
                 for i in range(number_of_tabs):
                     with chat_tabs[i]:
                         process_column()
-            # if st.button("전송"):
-            #     if number_of_columns == 1:
-            #         process_column()
-            #     elif number_of_columns == 2:
-            #         col1, col2 = st.columns(2)
-            #         with col1:
-            #             process_column()
-            #         with col2:
-            #             process_column()
-            #     elif number_of_columns == 3:
-            #         col1, col2, col3 = st.columns(3)
-            #         with col1:
-            #             process_column()
-            #         with col2:
-            #             process_column()
-            #         with col3:
-            #             process_column()
-            #     elif number_of_columns == 4:
-            #         col1, col2 = st.columns(2)
-            #         col3, col4 = st.columns(2)
-            #         with col1:
-            #             process_column()
-            #         with col2:
-            #             process_column()
-            #         with col3:
-            #             process_column()
-            #         with col4:
-            #             process_column()
 
     except Exception as e:
         st.error(f"예기치 않은 오류가 발생했습니다: {str(e)}")
