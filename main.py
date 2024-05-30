@@ -526,6 +526,7 @@ def main():
         favorite_directories = load_favorite_directories()
 
         with st.sidebar:
+            st.header("1_Openai_chat_async")
             st.subheader("즐겨찾기 경로")
             selected_favorite_directory = st.selectbox(
                 "즐겨찾기 경로 선택", favorite_directories)
@@ -691,6 +692,7 @@ def main():
         prompt += f"########################\n 자료 이름 : {
             specific_node.label} \n\n{specific_node_content}"
 
+        st.session_state['prompt'] = prompt
         if st.button('프롬프트 복사'):
             pyperclip.copy(prompt)
         if st.button('프롬프트 확인'):
