@@ -526,7 +526,6 @@ def main():
         favorite_directories = load_favorite_directories()
 
         with st.sidebar:
-            st.header("1_Openai_chat_async")
             st.subheader("즐겨찾기 경로")
             selected_favorite_directory = st.selectbox(
                 "즐겨찾기 경로 선택", favorite_directories)
