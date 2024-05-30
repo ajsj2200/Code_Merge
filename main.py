@@ -33,15 +33,21 @@ class Node:
 
     def to_dict(self):
         return {
-            "label": self.label,
+            "label": self.get_label_with_icon(),
             "value": self.id,
             "code": self.code,
             "children": [child.to_dict() for child in self.children],
-            "expand_disabled": self.is_leaf()  # 추가 부분
+            "expand_disabled": self.is_leaf()
         }
 
     def is_leaf(self):
         return len(self.children) == 0
+
+    def get_label_with_icon(self):
+        if os.path.isdir(self.id):
+            return f"📁 {self.label})"
+        else:
+            return f"📄 {self.label}"
 
 
 def count_files_in_folder(path, allowed_extensions):
@@ -189,7 +195,7 @@ def directory_to_tree(path, allowed_extensions=None, progress=None, processed_fi
     name = os.path.basename(path)
     if os.path.isdir(path):
         file_count = count_files_in_folder(path, allowed_extensions)
-        name = f"[폴더] {name} ({file_count}개 파일)"  # 폴더 이름 뒤에 파일 개수 추가
+        name = f"{name} ({file_count}개 파일"  # 폴더 이름 뒤에 파일 개수 추가
     node = Node(name, id=path)
 
     if progress is None:
@@ -645,13 +651,19 @@ def main():
             #     st.session_state.nodes = load_nodes_from_json(json_data)
             #     st.session_state.expanded_nodes = [
             #         node.id for node in st.session_state.nodes]
+
+        if "checked_nodes" not in st.session_state:
+            st.session_state.checked_nodes = []
+        if "expanded_nodes" not in st.session_state:
+            st.session_state.expanded_nodes = []
+
         tree_result = tree_select(
             [node.to_dict() for node in st.session_state.nodes],
             check_model='all',
             show_expand_all=False,
             expand_disabled=False,
             expanded=st.session_state.expanded_nodes,  # 추가 부분
-            checked=st.session_state.checked_nodes  # 추가 부분
+            # checked=st.session_state.checked_nodes  # 추가 부분
         )
 
         st.session_state.checked_nodes = tree_result.get('checked', [])
@@ -661,6 +673,21 @@ def main():
 
         selected_nodes = tree_result.get('checked', [])
         st.subheader("선택된 자료의 내용")
+
+        # selected_nodes중 폴더가 아닌 파일만 선택하도록 함
+        # \ 로 구분하고 마지막 조각에 .이 있으면 파일로 결정
+        # 파일만 선택하는 함수
+        def select_files(nodes):
+            files = []
+            for node in nodes:
+                # \로 경로 구분
+                parts = node.split("\\")
+                # 마지막 조각에 .이 있으면 파일로 간주
+                if "." in parts[-1]:
+                    files.append(parts[-1])
+            return files
+
+        st.write(select_files(selected_nodes))
 
         request = st.text_area("요청 입력", height=100)
 
