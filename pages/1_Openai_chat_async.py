@@ -14,8 +14,6 @@ st.set_page_config(
     layout="wide",
 )
 
-st.title("Demo: Async streaming of OpenAI output")
-
 prompt = st.text_area("input prompt", st.session_state['prompt'])
 
 num_essays = st.slider("Number of Essays", min_value=1, max_value=10, value=4)

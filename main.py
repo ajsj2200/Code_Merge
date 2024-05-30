@@ -649,9 +649,13 @@ def main():
             [node.to_dict() for node in st.session_state.nodes],
             check_model='all',
             show_expand_all=False,
-            expand_disabled=False,  # 추가 부분
+            expand_disabled=False,
+            expanded=st.session_state.expanded_nodes,  # 추가 부분
+            checked=st.session_state.checked_nodes  # 추가 부분
         )
 
+        st.session_state.checked_nodes = tree_result.get('checked', [])
+        st.session_state.expanded_nodes = tree_result.get('expanded', [])
         # st.code([node.to_dict() for node in st.session_state.nodes])
         prompts = load_prompts()
 
