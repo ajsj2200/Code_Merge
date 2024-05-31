@@ -604,6 +604,7 @@ def main():
                         new_directory_node.id)
                 else:
                     st.error(f"디렉토리 경로가 존재하지 않습니다: {directory}")
+                st.rerun()
 
             if st.button("즐겨찾기 모든 경로 노드 추가"):
                 for directory in favorite_directories:
@@ -615,6 +616,7 @@ def main():
                             new_directory_node.id)
                     else:
                         st.error(f"디렉토리 경로가 존재하지 않습니다: {directory}")
+                st.rerun()
 
             # st.subheader("노드 수정")
             # edit_label = st.selectbox(
@@ -663,11 +665,12 @@ def main():
             show_expand_all=False,
             expand_disabled=False,
             expanded=st.session_state.expanded_nodes,  # 추가 부분
-            # checked=st.session_state.checked_nodes  # 추가 부분
+            checked=st.session_state.checked_nodes  # 추가 부분
         )
 
         st.session_state.checked_nodes = tree_result.get('checked', [])
         st.session_state.expanded_nodes = tree_result.get('expanded', [])
+
         # st.code([node.to_dict() for node in st.session_state.nodes])
         prompts = load_prompts()
 
