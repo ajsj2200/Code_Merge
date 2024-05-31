@@ -2,7 +2,7 @@ import streamlit as st
 import asyncio
 from openai import AsyncOpenAI
 
-# openai_api_key.txt load
+# openai_api_key.txt 파일에서 API 키를 읽어오기
 api_key = open("openai_api_key.txt", "r").read()
 try:
     client = AsyncOpenAI(api_key=api_key)
@@ -14,16 +14,28 @@ st.set_page_config(
     layout="wide",
 )
 
-prompt = st.text_area("input prompt", st.session_state['prompt'])
+# 사용자가 입력한 프롬프트를 받는 텍스트 영역
+prompt = st.text_area(
+    "Input Prompt", st.session_state.get('prompt', ''), height=500)
 
+# 에세이 수를 선택하는 슬라이더
 num_essays = st.slider("Number of Essays", min_value=1, max_value=10, value=4)
-
-placeholders = [(st.empty(), st.empty()) for _ in range(num_essays)]
 generate = st.button("Generate")
+
+# 에세이를 표시할 플레이스홀더를 여러 컬럼에 배치
+placeholders = []
+
+for i in range(0, num_essays, 2):
+    cols = st.columns(2)
+    for col in cols:
+        if len(placeholders) < num_essays:
+            placeholders.append((col.empty(), col.empty()))
+
+# 에세이 생성 함수
 
 
 async def generate_essay(title_placeholder, content_placeholder, prompt, essay_number):
-    title_placeholder.subheader(f"Essay {essay_number + 1}")
+    title_placeholder.subheader(f"Output {essay_number + 1}")
     stream = await client.chat.completions.create(
         model="gpt-4o",
         messages=[{"role": "system", "content": "You are a helpful assistant."},
@@ -38,6 +50,8 @@ async def generate_essay(title_placeholder, content_placeholder, prompt, essay_n
             streamed_text += chunk_content
             content_placeholder.info(streamed_text)
 
+# 메인 함수
+
 
 async def main():
     tasks = [
@@ -47,5 +61,6 @@ async def main():
     ]
     await asyncio.gather(*tasks)
 
+# 버튼이 눌리면 메인 함수 실행
 if generate:
     asyncio.run(main())
