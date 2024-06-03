@@ -44,10 +44,21 @@ class Node:
         return len(self.children) == 0
 
     def get_label_with_icon(self):
+        file_extension_to_emoji = {
+            '.py': '🐍',   # Python files
+            '.cs': '🧩',   # C# files
+            '.txt': '📄',  # Text files
+            '.md': '📝',   # Markdown files
+        }
+
         if os.path.isdir(self.id):
-            return f"📁 {self.label})"
+            return f"📁 {self.label}"
         else:
-            return f"📄 {self.label}"
+            if self.id.endswith('.Designer.cs'):
+                return f"🎨 {self.label}"
+            else:
+                _, extension = os.path.splitext(self.id)
+                return f"{file_extension_to_emoji.get(extension, '📄')} {self.label}"
 
 
 def count_files_in_folder(path, allowed_extensions):
