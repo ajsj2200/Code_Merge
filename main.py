@@ -49,6 +49,8 @@ class Node:
             '.cs': '🧩',   # C# files
             '.txt': '📄',  # Text files
             '.md': '📝',   # Markdown files
+            '.cpp': '♾',  # C++ files
+            '.h': '📦',  # Header files
         }
 
         if os.path.isdir(self.id):
@@ -201,7 +203,7 @@ def write_file(file_path, content):
 
 def directory_to_tree(path, allowed_extensions=None, progress=None, processed_files=0, total_files=1):
     if allowed_extensions is None:
-        allowed_extensions = ['.cs', '.py', '.txt', '.md']
+        allowed_extensions = ['.cs', '.py', '.txt', '.md', '.h', '.cpp']
 
     name = os.path.basename(path)
     if os.path.isdir(path):
@@ -586,7 +588,7 @@ def main():
             directory_path = st.text_input(
                 "디렉토리 경로 입력", value=selected_favorite_directory)
             st_allowed_extensions = st.multiselect(
-                "포함할 파일 확장자 선택", [".cs", ".py", ".txt", ".md"], default=[".cs", ".py", ".txt", ".md"])
+                "포함할 파일 확장자 선택", [".cs", ".py", ".txt", ".md", ".h", ".cpp"], default=[".cs", ".py", ".txt", ".md", ".h", ".cpp"])
             if st.button("디렉토리 트리 추가"):
                 if os.path.exists(directory_path):
                     # 디렉토리 경로와 일치하는 노드를 찾아서 삭제
