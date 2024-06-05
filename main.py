@@ -705,7 +705,11 @@ def main():
 
         st.write(select_files(selected_nodes))
 
-        request = st.text_area("요청 입력", height=100)
+        if 'request' not in st.session_state:
+            st.session_state.request = st.text_area("요청 입력", height=100)
+        else:
+            st.session_state.request = st.text_area(
+                "요청 입력", value=st.session_state.request, height=100)
 
         global selected_code
         selected_code = get_selected_code(selected_nodes)
@@ -732,7 +736,7 @@ def main():
             if use_prompt:
                 prompt += f"{prompt_content}\n\n"
 
-        prompt += f"[요청: {request}]\n\n"
+        prompt += f"[요청: {st.session_state.request}]\n\n"
 
         # 특정 노드 내용을 마지막에 추가
         prompt += f"########################\n 자료 이름 : {
@@ -749,7 +753,7 @@ def main():
         with tab1:
             display_selected_codes(selected_nodes)
         with tab2:
-            make_metaprompt(request)
+            make_metaprompt(st.session_state.request)
 
         with tab3:
             st.write("프롬프트 향상")
