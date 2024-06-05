@@ -25,11 +25,17 @@ generate = st.button("Generate")
 # 에세이를 표시할 플레이스홀더를 여러 컬럼에 배치
 placeholders = []
 
-for i in range(0, num_essays, 2):
-    cols = st.columns(2)
+# 에세이가 1개면 1개의 컬럼에 배치
+if num_essays == 1:
+    cols = st.columns(1)
     for col in cols:
-        if len(placeholders) < num_essays:
-            placeholders.append((col.empty(), col.empty()))
+        placeholders.append((col.empty(), col.empty()))
+else:
+    for i in range(0, num_essays, 2):
+        cols = st.columns(2)
+        for col in cols:
+            if len(placeholders) < num_essays:
+                placeholders.append((col.empty(), col.empty()))
 
 # 에세이 생성 함수
 
