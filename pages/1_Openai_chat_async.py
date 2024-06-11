@@ -19,7 +19,7 @@ prompt = st.text_area(
     "Input Prompt", st.session_state.get('prompt', ''), height=500)
 
 # 에세이 수를 선택하는 슬라이더
-num_essays = st.slider("Number of Essays", min_value=1, max_value=10, value=4)
+num_essays = st.slider("Number of Essays", min_value=1, max_value=10, value=2)
 generate = st.button("Generate")
 
 # 에세이를 표시할 플레이스홀더를 여러 컬럼에 배치
