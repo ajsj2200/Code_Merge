@@ -1,6 +1,7 @@
 import streamlit as st
 import asyncio
 from openai import AsyncOpenAI
+import pyperclip
 
 # openai_api_key.txt 파일에서 API 키를 읽어오기
 api_key = open("openai_api_key.txt", "r").read()
@@ -14,13 +15,27 @@ st.set_page_config(
     layout="wide",
 )
 
+# 세션 상태 초기화
+if 'generate_clicked' not in st.session_state:
+    st.session_state.generate_clicked = False
+if 'all_results' not in st.session_state:
+    st.session_state.all_results = ""
+
 # 사용자가 입력한 프롬프트를 받는 텍스트 영역
 prompt = st.text_area(
     "Input Prompt", st.session_state.get('prompt', ''), height=500)
 
 # 에세이 수를 선택하는 슬라이더
 num_essays = st.slider("Number of Essays", min_value=1, max_value=10, value=2)
-generate = st.button("Generate")
+
+# generate 버튼 클릭 시 동작하는 함수
+
+
+def on_generate_click():
+    st.session_state.generate_clicked = True
+
+
+generate = st.button("Generate", on_click=on_generate_click)
 
 # 에세이를 표시할 플레이스홀더를 여러 컬럼에 배치
 placeholders = []
@@ -55,6 +70,7 @@ async def generate_essay(title_placeholder, content_placeholder, prompt, essay_n
         if chunk_content is not None:
             streamed_text += chunk_content
             content_placeholder.info(streamed_text)
+    return streamed_text
 
 # 메인 함수
 
@@ -65,8 +81,39 @@ async def main():
                        prompt=prompt, essay_number=i)
         for i, (title_placeholder, content_placeholder) in enumerate(placeholders)
     ]
-    await asyncio.gather(*tasks)
+    results = await asyncio.gather(*tasks)
+    return results
 
-# 버튼이 눌리면 메인 함수 실행
-if generate:
-    asyncio.run(main())
+# 복사 기능
+
+
+def copy_to_clipboard(text):
+    pyperclip.copy(text)
+    st.success("Content copied to clipboard!")
+
+
+# generate 버튼이 클릭되었고, 아직 처리되지 않았다면 메인 함수 실행
+if st.session_state.generate_clicked:
+    results = asyncio.run(main())
+
+    # 모든 결과를 하나의 문자열로 결합
+    st.session_state.all_results = f"사용자 요청 : {prompt}\n\n"
+    for i, result in enumerate(results, 1):
+        st.session_state.all_results += f"{i}번 출력 : \n{result}\n\n"
+
+    # generate_clicked 상태 재설정
+    st.session_state.generate_clicked = False
+
+summary_prompt = f"\n\n[위는 사용자와 AI간의 대화입니다. 이를 참고로 하고 스스로 새로운 내용도 추가하여 사용자의 요청에 대해 답변하세요. \n\n 사용자 요청 : {
+    st.session_state.request}]"
+final_results = st.session_state.all_results + summary_prompt
+# 복사 버튼 추가
+if st.button("Copy All Results"):
+    summary_prompt = f"\n\n[위는 사용자와 AI간의 대화입니다. 이를 참고로 하고 스스로 새로운 내용도 추가하여 사용자의 요청에 대해 답변하세요. \n\n 사용자 요청 : {
+        st.session_state.request}]"
+    final_results = st.session_state.all_results + summary_prompt
+    copy_to_clipboard(final_results)
+
+# 결과 표시
+st.write("모든 결과:")
+st.text_area("", final_results, height=300)
