@@ -1,5 +1,5 @@
 C:\Users\ajsj2\Desktop\회사
 C:\Code\DM_100\AppX\Samwha
 C:\jh_coding\Code_Merge
-C:\Users\ajsj2\Desktop\Obsidian
-C:\Code\DM_100\DrvX\DrvSamwha
+C:\Code\DM_100\LibNet\ExcelLink
+C:\Code\DM_100\AppUI\DataMonClient
