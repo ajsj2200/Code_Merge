@@ -1,18 +1,17 @@
 import streamlit as st
 import asyncio
-from anthropic import AsyncAnthropic
+from openai import AsyncOpenAI
 import pyperclip
-import numpy as np
 
-# api_key.txt 파일에서 API 키를 읽어오기
-api_key = open("api_key.txt", "r").read()
+# openai_api_key.txt 파일에서 API 키를 읽어오기
+api_key = open("openai_api_key.txt", "r").read()
 try:
-    client = AsyncAnthropic(api_key=api_key)
+    client = AsyncOpenAI(api_key=api_key)
 except:
-    client = AsyncAnthropic()
+    client = AsyncOpenAI()
 
 st.set_page_config(
-    page_title="Anthropic Async Stream",
+    page_title="OpenAI Async Stream Demo",
     layout="wide",
 )
 
@@ -28,13 +27,6 @@ prompt = st.text_area(
 
 # 에세이 수를 선택하는 슬라이더
 num_essays = st.slider("Number of Essays", min_value=1, max_value=10, value=2)
-
-# temperature 슬라이더
-col_temp, col_temp2 = st.columns(2)
-min_temperature = col_temp.slider(
-    "Min Temperature", min_value=0.0, max_value=1.0, value=0.1)
-high_temperature = col_temp2.slider(
-    "High Temperature", min_value=0.0, max_value=1.0, value=0.6)
 
 # generate 버튼 클릭 시 동작하는 함수
 
@@ -63,20 +55,21 @@ else:
 # 에세이 생성 함수
 
 
-async def generate_essay(title_placeholder, content_placeholder, prompt, essay_number, min_temperature=min_temperature, high_temperature=high_temperature):
+async def generate_essay(title_placeholder, content_placeholder, prompt, essay_number):
     title_placeholder.subheader(f"Output {essay_number + 1}")
-
+    stream = await client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "system", "content": "You are a helpful assistant."},
+                  {"role": "user", "content": prompt}],
+        stream=True,
+        max_tokens=4096
+    )
     streamed_text = ""
-    async with client.messages.stream(
-        max_tokens=4096,
-        messages=[{"role": "user", "content": prompt}],
-        model="claude-3-5-sonnet-20240620",
-        temperature=np.random.uniform(min_temperature, high_temperature),
-    ) as stream:
-        async for text in stream.text_stream:
-            streamed_text += text
+    async for chunk in stream:
+        chunk_content = chunk.choices[0].delta.content
+        if chunk_content is not None:
+            streamed_text += chunk_content
             content_placeholder.info(streamed_text)
-
     return streamed_text
 
 # 메인 함수

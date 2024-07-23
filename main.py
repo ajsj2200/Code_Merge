@@ -16,6 +16,9 @@ import concurrent.futures
 import openai
 from openai import AsyncOpenAI
 
+param_allowed_extensions = ['.cs', '.py',
+                            '.txt', '.md', '.h', '.cpp', 'Dockerfile', '.mmd']
+
 
 class Node:
     def __init__(self, label, code="", children=None, id=None):
@@ -51,6 +54,7 @@ class Node:
             '.md': '📝',   # Markdown files
             '.cpp': '♾',  # C++ files
             '.h': '📦',  # Header files
+            '.mmd': '🧜‍♀️',  # Mermaid Diagram files
         }
 
         if os.path.isdir(self.id):
@@ -58,18 +62,46 @@ class Node:
         else:
             if self.id.endswith('.Designer.cs'):
                 return f"🎨 {self.label}"
+            elif os.path.basename(self.id) == 'Dockerfile':
+                return f"🐳 {self.label}"
             else:
                 _, extension = os.path.splitext(self.id)
                 return f"{file_extension_to_emoji.get(extension, '📄')} {self.label}"
+
+    @classmethod
+    def from_dict(cls, node_dict):
+        node = cls(node_dict["label"], node_dict["code"],
+                   id=node_dict["value"])
+        node.children = [cls.from_dict(child_dict)
+                         for child_dict in node_dict.get("children", [])]
+        return node
 
 
 def count_files_in_folder(path, allowed_extensions):
     count = 0
     for root, dirs, files in os.walk(path):
         for file in files:
-            if os.path.splitext(file)[1] in allowed_extensions:
+            file_extension = os.path.splitext(file)[1]
+            if file_extension in allowed_extensions or file in allowed_extensions:
                 count += 1
     return count
+
+
+def save_state():
+    state = {
+        "nodes": [node.to_dict() for node in st.session_state.nodes],
+        "checked_nodes": st.session_state.checked_nodes,
+        "expanded_nodes": st.session_state.expanded_nodes
+    }
+    return json.dumps(state)
+
+
+def load_state(state_json):
+    state = json.loads(state_json)
+    st.session_state.nodes = [Node.from_dict(
+        node_dict) for node_dict in state["nodes"]]
+    st.session_state.checked_nodes = state["checked_nodes"]
+    st.session_state.expanded_nodes = state["expanded_nodes"]
 
 
 @st.cache_resource
@@ -203,12 +235,12 @@ def write_file(file_path, content):
 
 def directory_to_tree(path, allowed_extensions=None, progress=None, processed_files=0, total_files=1):
     if allowed_extensions is None:
-        allowed_extensions = ['.cs', '.py', '.txt', '.md', '.h', '.cpp']
+        allowed_extensions = param_allowed_extensions
 
     name = os.path.basename(path)
     if os.path.isdir(path):
         file_count = count_files_in_folder(path, allowed_extensions)
-        name = f"{name} ({file_count}개 파일"  # 폴더 이름 뒤에 파일 개수 추가
+        name = f"{name} ({file_count}개 파일)"  # 폴더 이름 뒤에 파일 개수 추가
     node = Node(name, id=path)
 
     if progress is None:
@@ -235,7 +267,8 @@ def directory_to_tree(path, allowed_extensions=None, progress=None, processed_fi
                 print(str(e))
     else:
         file_extension = os.path.splitext(path)[1]
-        if file_extension in allowed_extensions:
+        file_name = os.path.basename(path)
+        if file_extension in allowed_extensions or file_name in allowed_extensions:
             node.code = path  # 파일 경로만 저장
             processed_files += 1
             progress.progress(processed_files / total_files)
@@ -535,6 +568,10 @@ def main():
         st.set_page_config(page_title="트리 기반 자료 관리 시스템", layout="wide")
         st.title("트리 기반 자료 관리")
 
+        # 세션 상태 변수 초기화
+        if 'state_loaded' not in st.session_state:
+            st.session_state.state_loaded = False
+
         if "nodes" not in st.session_state:
             st.session_state.nodes = [Node("START", "시작")]
 
@@ -588,7 +625,7 @@ def main():
             directory_path = st.text_input(
                 "디렉토리 경로 입력", value=selected_favorite_directory)
             st_allowed_extensions = st.multiselect(
-                "포함할 파일 확장자 선택", [".cs", ".py", ".txt", ".md", ".h", ".cpp"], default=[".cs", ".py", ".txt", ".md", ".h", ".cpp"])
+                "포함할 파일 확장자 선택", param_allowed_extensions, default=param_allowed_extensions)
             if st.button("디렉토리 트리 추가"):
                 if os.path.exists(directory_path):
                     # 디렉토리 경로와 일치하는 노드를 찾아서 삭제
@@ -629,6 +666,25 @@ def main():
                             new_directory_node.id)
                     else:
                         st.error(f"디렉토리 경로가 존재하지 않습니다: {directory}")
+                st.rerun()
+
+            st.subheader("상태 저장 및 불러오기")
+            if st.button("현재 상태 저장"):
+                state_json = save_state()
+                st.download_button(
+                    label="상태 파일 다운로드",
+                    data=state_json,
+                    file_name="tree_state.json",
+                    mime="application/json"
+                )
+
+            uploaded_file = st.file_uploader(
+                "상태 파일 업로드", type=["json"], key="state_uploader")
+            if uploaded_file is not None and not st.session_state.state_loaded:
+                state_json = uploaded_file.getvalue().decode("utf-8")
+                load_state(state_json)
+                st.success("상태를 성공적으로 불러왔습니다.")
+                st.session_state.state_loaded = True
                 st.rerun()
 
             # st.subheader("노드 수정")
